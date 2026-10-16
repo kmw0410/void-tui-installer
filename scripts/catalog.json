@@ -1,0 +1,11 @@
+{
+  "common": ["bluez", "tlp"],
+  "utilities": ["wget", "curl", "vim", "nano", "git", "openssh", "firefox", "kitty", "bash-completion", "rsync", "zip", "unzip", "btop", "ripgrep", "fcitx5", "fcitx5-hangul", "wl-clipboard", "jq", "pciutils", "usbutils"],
+  "fcitx": ["fcitx5", "fcitx5-qt", "fcitx5-qt5", "fcitx5-qt6", "fcitx5-gtk", "fcitx5-gtk+3", "fcitx5-gtk4", "fcitx5-configtool"],
+  "graphical": ["sddm", "xorg-server", "xf86-input-libinput", "mesa-dri", "elogind", "dbus", "dejavu-fonts-ttf", "noto-fonts-cjk", "qt6-wayland", "pipewire", "wireplumber", "libjack-pipewire", "alsa-pipewire", "xdg-user-dirs"],
+  "desktops": {
+    "none": [],
+    "kde": ["plasma-desktop", "plasma-workspace", "kscreen", "konsole", "sddm-kcm", "plasma-pa", "kwallet-pam", "kf6-kwallet", "plasma-nm", "bluedevil", "dolphin", "ark", "NetworkManager", "libspa-bluetooth", "xdg-desktop-portal-kde"],
+    "niri": ["niri", "xdg-desktop-portal-gnome", "gnome-keyring", "seahorse", "xwayland-satellite", "NetworkManager", "network-manager-applet", "polkit-gnome", "pavucontrol"]
+  }
+}

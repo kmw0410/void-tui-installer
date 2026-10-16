@@ -1,0 +1,7 @@
+.tools/
+dist/
+*.log
+tests/vm/
+__pycache__/
+/WORK.md
+/work.md
