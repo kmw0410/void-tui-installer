@@ -7,15 +7,15 @@
 <details>
 <summary>스크린샷</summary>
 <ul>
-  <li><p>1. 시작 및 Live 환경 준비</p><img src="1.png" alt="Live 환경 준비 단계가 표시된 시작 화면" width="100%"></li>
-  <li><p>2. 저장소 미러</p><img src="2.png" alt="사용자 지정 HTTPS 저장소 미러 선택 화면" width="100%"></li>
-  <li><p>3. 설치 디스크</p><img src="3.png" alt="용량, Serial, 사용 가능 상태가 표시된 설치 디스크 선택 화면" width="100%"></li>
-  <li><p>4. 계정 및 호스트 이름</p><img src="4.png" alt="사용자 이름, 마스킹된 비밀번호, 호스트 이름 입력 화면" width="100%"></li>
-  <li><p>5. 시간대</p><img src="5.png" alt="Asia/Seoul이 선택된 시간대 검색 화면" width="100%"></li>
-  <li><p>6. 네트워크</p><img src="6.png" alt="DHCP가 선택된 네트워크 설정 화면" width="100%"></li>
-  <li><p>7. 데스크톱</p><img src="7.png" alt="콘솔, KDE Plasma, Niri 선택과 NVIDIA GPU 미탐지 안내 화면" width="100%"></li>
-  <li><p>8. 유틸리티</p><img src="8.png" alt="선택 패키지 체크박스와 설명이 표시된 유틸리티 화면" width="100%"></li>
-  <li><p>9. 검토 및 디스크 삭제 확인</p><img src="9.png" alt="설치 요약과 디스크 삭제 확인을 표시하는 중앙 검토 창" width="100%"></li>
+  <li><p>1. 시작 및 Live 환경 준비</p><img src="img/welcome.png" alt="Live 환경 준비 단계가 표시된 시작 화면" width="100%"></li>
+  <li><p>2. 저장소 미러</p><img src="img/mirror.png" alt="사용자 지정 HTTPS 저장소 미러 선택 화면" width="100%"></li>
+  <li><p>3. 설치 디스크</p><img src="img/disk.png" alt="용량, Serial, 사용 가능 상태가 표시된 설치 디스크 선택 화면" width="100%"></li>
+  <li><p>4. 계정 및 호스트 이름</p><img src="img/account.png" alt="사용자 이름, 마스킹된 비밀번호, 호스트 이름 입력 화면" width="100%"></li>
+  <li><p>5. 시간대</p><img src="img/timezone.png" alt="Asia/Seoul이 선택된 시간대 검색 화면" width="100%"></li>
+  <li><p>6. 네트워크</p><img src="img/network.png" alt="DHCP가 선택된 네트워크 설정 화면" width="100%"></li>
+  <li><p>7. 데스크톱</p><img src="img/desktop.png" alt="콘솔, KDE Plasma, Niri 선택과 NVIDIA GPU 미탐지 안내 화면" width="100%"></li>
+  <li><p>8. 유틸리티</p><img src="img/utilities.png" alt="선택 패키지 체크박스와 설명이 표시된 유틸리티 화면" width="100%"></li>
+  <li><p>9. 검토 및 디스크 삭제 확인</p><img src="img/review-installation.png" alt="설치 요약과 디스크 삭제 확인을 표시하는 중앙 검토 창" width="100%"></li>
 </ul>
 </details>
 
