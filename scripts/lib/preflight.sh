@@ -28,7 +28,10 @@ preflight_environment() {
 }
 prepare_live_environment() {
     # Validate the Live session before changing its package database. No jq is needed here.
+    preparation_progress environment running
     preflight_live_environment
+    preparation_progress environment completed
+    preparation_progress tools running
     local cmd missing=0
     for cmd in xbps-install flock; do
         command -v "$cmd" >/dev/null || fail "Required base command is missing: $cmd"
@@ -40,12 +43,21 @@ prepare_live_environment() {
             missing=1
         fi
     done
+    preparation_progress tools completed
     if (( missing )); then
+        preparation_progress xbps running
         # Update XBPS separately, then install the fixed Live-tool package set.
         preflight_command 'Live XBPS update' xbps-install -Sy xbps
+        preparation_progress xbps completed
+        preparation_progress install running
         preflight_command 'Live installation tools' xbps-install -Sy jq gptfdisk parted dosfstools btrfs-progs psmisc
+        preflight_environment
+        preparation_progress install completed
+    else
+        preflight_environment
+        preparation_progress xbps skipped
+        preparation_progress install skipped
     fi
-    preflight_environment
 }
 acquire_installer_lock() {
     exec 9>/run/void-tui-installer.lock
@@ -116,4 +128,8 @@ preflight_install() {
     preflight_repository "$WORK/repo"
     check_graphics
     check_disk
+}
+
+preparation_progress() {
+    printf "VOID_PREP %s %s\n" "$1" "$2" >&2
 }

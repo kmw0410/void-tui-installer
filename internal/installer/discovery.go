@@ -14,6 +14,7 @@ import (
 
 type Disk struct {
 	Path, Model, Size, Type, Identity, Reason string
+	Serial, WWN                               string
 	Safe                                      bool
 }
 type blockDevice struct {
@@ -57,7 +58,7 @@ func DiscoverContext(ctx context.Context) ([]Disk, error) {
 		if d.Type != "disk" {
 			continue
 		}
-		disk := Disk{Path: d.Path, Model: clean(strings.TrimSpace(d.Model), ""), Type: d.Type, Size: fmt.Sprintf("%.1f GiB", float64(d.Size)/(1<<30))}
+		disk := Disk{Path: d.Path, Model: clean(strings.TrimSpace(d.Model), ""), Serial: clean(strings.TrimSpace(d.Serial), ""), WWN: clean(strings.TrimSpace(d.WWN), ""), Type: d.Type, Size: fmt.Sprintf("%.1f GiB", float64(d.Size)/(1<<30))}
 		disk.Reason = unsafeReason(d)
 		if disk.Reason == "" {
 			identity, e := outputContext(ctx, "lsblk", "-bdn", "-o", "MAJ:MIN,SIZE,LOG-SEC,SERIAL,WWN", "--", d.Path)

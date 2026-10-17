@@ -55,6 +55,8 @@ Welcome → Mirror → Disk → Account → Timezone → Network → Desktop →
 
 방향키 또는 Tab/Shift+Tab으로 이동하고, Space로 선택·체크를 전환하고, Enter로 확정하며, Esc로 이전 화면으로 돌아갑니다. 마지막 Review는 검은 배경 중앙의 사각형 창으로 표시됩니다. PageUp/PageDown으로 요약을 스크롤할 수 있으며, 삭제 확인 입력과 Back/Install 버튼은 계속 표시됩니다. 입력칸에서 Enter를 누르면 Install로 이동하고, 해당 버튼에서 Enter를 한 번 더 눌러야 설치가 시작됩니다.
 
+Welcome에서는 준비 단계별 진행·완료·생략·실패 상태를 표시합니다. 설정 화면의 Continue는 같은 하단 위치에 고정되며, 선택 목록에서 Tab으로 버튼에 이동하거나 Enter로 현재 선택을 확정하고 진행합니다. 계정·고정 네트워크 폼에서는 Enter로 입력칸을 거쳐 Continue로 이동한 뒤 제출합니다. 잘못된 값의 설명은 해당 입력칸 아래에 표시합니다. 디스크 화면은 목록과 모델·용량·Serial/WWN·차단 사유를 분리하며, Welcome 검사 실패 시 D로 정보만 조회할 수 있습니다. Desktop·Utilities의 설명은 선택 목록 아래에 고정합니다. Review에는 선택한 데스크톱·드라이버·유틸리티 개수를 먼저 보여주고 패키지·서비스·저장소 상세를 뒤에 배치합니다. 설치 중에는 민감 정보를 제거한 최근 로그 몇 줄을 표시하며 F2로 전체 로그를 엽니다.
+
 ## 설치 프로필
 
 콘솔 전용(CLI), KDE Plasma, Niri 중 하나를 선택할 수 있습니다. KDE Plasma는 `plasma-desktop`, `sddm`, `kwallet-pam`, `kf6-kwallet` 등을 설치합니다. Niri는 `niri`, `sddm`, `xdg-desktop-portal-gnome`, `gnome-keyring`, `seahorse` 등 세션에 필요한 패키지를 설치합니다.

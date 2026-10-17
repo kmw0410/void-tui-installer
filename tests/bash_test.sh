@@ -496,4 +496,12 @@ for scenario in missing ready guard-failure update-failure install-failure; do
     esac
 done
 pass 'Live preparation installs missing tools after guards, skips ready sessions and stops on XBPS failures'
+grep -q '^VOID_PREP environment running$' "$TEST_DIR/prepare-guard-failure.out"
+if grep -q '^VOID_PREP environment completed$' "$TEST_DIR/prepare-guard-failure.out"; then exit 1; fi
+grep -q '^VOID_PREP xbps skipped$' "$TEST_DIR/prepare-ready.out"
+grep -q '^VOID_PREP install skipped$' "$TEST_DIR/prepare-ready.out"
+grep -q '^VOID_PREP install running$' "$TEST_DIR/prepare-install-failure.out"
+if grep -q '^VOID_PREP install completed$' "$TEST_DIR/prepare-install-failure.out"; then exit 1; fi
+grep -q '^VOID_PREP install completed$' "$TEST_DIR/prepare-missing.out"
+pass 'Live preparation reports running, skipped and completed states without marking failed work complete'
 printf '1..%s\n' "$count"

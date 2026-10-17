@@ -39,6 +39,10 @@ type environmentMsg struct {
 	gpus       []installer.GPU
 	err        error
 }
+type preparationMsg struct {
+	stage, status string
+	updates       <-chan tea.Msg
+}
 type startedMsg struct {
 	session *installer.Session
 	err     error
@@ -65,6 +69,10 @@ type model struct {
 	width, height                     int
 	ready, checking                   bool
 	err                               string
+	fieldErrors                       map[int]string
+	preparation                       map[string]string
+	continueFocused                   bool
+	diskInspection                    bool
 	disks                             []installer.Disk
 	interfaces                        []string
 	gpus                              []installer.GPU
@@ -138,10 +146,11 @@ func NewWithVersion(parent context.Context, version string) *model {
 	return m
 }
 
-func checkEnvironment(ctx context.Context) tea.Msg {
-	if err := installer.PrepareLiveContext(ctx); err != nil {
+func checkEnvironment(ctx context.Context, report func(string, string)) tea.Msg {
+	if err := installer.PrepareLiveProgressContext(ctx, report); err != nil {
 		return environmentMsg{err: err}
 	}
+	report("discovery", "running")
 	d, err := installer.DiscoverContext(ctx)
 	if err != nil {
 		return environmentMsg{err: err}
@@ -151,6 +160,9 @@ func checkEnvironment(ctx context.Context) tea.Msg {
 		return environmentMsg{err: err}
 	}
 	gpus, err := installer.NVIDIAGPUs()
+	if err == nil {
+		report("discovery", "completed")
+	}
 	return environmentMsg{disks: d, interfaces: interfaces, gpus: gpus, err: err}
 }
 func pulse() tea.Cmd {
@@ -163,8 +175,23 @@ func (m *model) checkCommand() tea.Cmd {
 		if !m.beginJob() {
 			return environmentMsg{err: context.Canceled}
 		}
-		defer m.jobs.Done()
-		return checkEnvironment(m.ctx)
+		updates := make(chan tea.Msg, 32)
+		go func() {
+			defer m.jobs.Done()
+			defer close(updates)
+			report := func(stage, status string) {
+				select {
+				case updates <- preparationMsg{stage, status, updates}:
+				case <-m.ctx.Done():
+				}
+			}
+			result := checkEnvironment(m.ctx, report)
+			select {
+			case updates <- result:
+			case <-m.ctx.Done():
+			}
+		}()
+		return <-updates
 	}
 }
 func (m *model) repositoryCommand(root string) tea.Cmd {
@@ -201,14 +228,22 @@ func awaitDone(s *installer.Session) tea.Cmd { return func() tea.Msg { return do
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case preparationMsg:
+		if m.preparation == nil {
+			m.preparation = map[string]string{}
+		}
+		m.preparation[msg.stage] = msg.status
+		return m, func() tea.Msg { return <-msg.updates }
 	case repositoryMsg:
 		m.checking = false
+		m.fieldErrors = nil
 		if msg.err != nil {
 			m.repositoryReady = false
 			m.err = msg.err.Error()
 			return m, nil
 		}
 		m.config.Mirror = msg.root
+		m.diskInspection = false
 		m.repositoryReady = true
 		m.err = ""
 		m.screen = disks
@@ -222,10 +257,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case environmentMsg:
 		m.checking = false
+		m.ready = false
 		m.disks, m.interfaces = msg.disks, msg.interfaces
 		m.gpus = msg.gpus
 		if msg.err != nil {
 			m.err = msg.err.Error()
+			for stage, status := range m.preparation {
+				if status == "running" {
+					m.preparation[stage] = "failed"
+				}
+			}
 			return m, nil
 		}
 		m.selectedDisk = -1
@@ -254,6 +295,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.ready = true
+		m.fieldErrors = nil
 		m.err = ""
 		return m, nil
 	case pulseMsg:
@@ -351,6 +393,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if key == "esc" {
 			m.err = ""
+			m.fieldErrors = nil
+			m.continueFocused = false
+			if m.screen == disks && m.diskInspection {
+				m.screen = welcome
+				m.diskInspection = false
+				return m, nil
+			}
 			if m.screen > welcome {
 				m.screen--
 				if m.screen == mirror && m.selectedMirror == len(installer.Mirrors) {
@@ -369,6 +418,34 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		if m.screen >= mirror && m.screen <= utilities && m.screen != account && !(m.screen == network && m.static) {
+			if m.continueFocused {
+				if key == "tab" || key == "shift+tab" || key == "up" || key == "down" {
+					m.continueFocused = false
+					if m.screen == mirror && m.selectedMirror == len(installer.Mirrors) {
+						return m, m.setFocus(9)
+					}
+					if m.screen == timezone {
+						return m, m.setFocus(10)
+					}
+					return m, nil
+				}
+				if key != "enter" {
+					return m, nil
+				}
+				m.continueFocused = false
+			} else if key == "tab" {
+				if m.screen == disks && (m.selectedDisk < 0 || !m.disks[m.selectedDisk].Safe) {
+					return m, nil
+				}
+				if m.screen == desktop && m.desktopFocus < 3 {
+					m.selectedDesktop = m.desktopFocus
+				}
+				m.continueFocused = true
+				m.blurAll()
+				return m, nil
+			}
+		}
 		switch m.screen {
 		case welcome:
 			if key == "q" {
@@ -378,10 +455,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ready = false
 				m.checking = true
 				m.err = ""
+				m.preparation = map[string]string{}
 				return m, m.checkCommand()
 			}
 			if key == "enter" && m.ready {
 				m.screen = mirror
+			}
+			if key == "d" && !m.checking && !m.ready && len(m.disks) > 0 {
+				m.diskInspection = true
+				m.selectedDisk = 0
+				m.screen = disks
+				m.err = ""
 			}
 		case mirror:
 			switch key {
@@ -402,11 +486,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					root = installer.Mirrors[m.selectedMirror].URL
 				} else if root == "" {
 					m.err = "Enter the custom mirror root."
+					m.fieldErrors = map[int]string{9: m.err}
+					m.setFocus(9)
 					return m, nil
 				}
 				normalized, err := installer.NormalizeMirror(root)
 				if err != nil {
 					m.err = err.Error()
+					if m.selectedMirror == len(installer.Mirrors) {
+						m.fieldErrors = map[int]string{9: m.err}
+						m.setFocus(9)
+					}
 					return m, nil
 				}
 				if m.repositoryReady && normalized == m.config.Mirror {
@@ -417,6 +507,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.repositoryReady = false
 				m.checking = true
 				m.err = ""
+				m.fieldErrors = nil
 				return m, m.repositoryCommand(normalized)
 			}
 			if m.selectedMirror == len(installer.Mirrors) {
@@ -429,7 +520,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "down", "tab":
 				m.selectedDisk = min(len(m.disks)-1, m.selectedDisk+1)
 			case "enter":
-				if m.selectedDisk >= 0 && m.selectedDisk < len(m.disks) && m.disks[m.selectedDisk].Safe {
+				if !m.diskInspection && m.selectedDisk >= 0 && m.selectedDisk < len(m.disks) && m.disks[m.selectedDisk].Safe {
 					d := m.disks[m.selectedDisk]
 					m.config.Disk = d.Path
 					m.config.Identity = d.Identity
@@ -439,10 +530,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case account:
 			if key == "tab" || key == "down" {
-				return m, m.setFocus((m.focus + 1) % 4)
+				if m.focus == 13 {
+					return m, m.setFocus(0)
+				}
+				if m.focus == 3 {
+					return m, m.setFocus(13)
+				}
+				return m, m.setFocus(m.focus + 1)
 			}
 			if key == "enter" {
-				if m.focus < 3 {
+				if m.focus < 4 {
+					if m.focus == 3 {
+						return m, m.setFocus(13)
+					}
 					return m, m.setFocus(m.focus + 1)
 				}
 				if err := m.validateAccount(); err != nil {
@@ -454,9 +554,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.setFocus(10)
 			}
 			if key == "shift+tab" || key == "up" {
-				return m, m.setFocus((m.focus + 3) % 4)
+				if m.focus == 0 {
+					return m, m.setFocus(13)
+				}
+				if m.focus == 13 {
+					return m, m.setFocus(3)
+				}
+				return m, m.setFocus(m.focus - 1)
 			}
-			return m, m.updateField(msg, m.focus)
+			if m.focus < 4 {
+				return m, m.updateField(msg, m.focus)
+			}
+			return m, nil
 		case timezone:
 			zones := m.filteredTimezones()
 			switch key {
@@ -471,9 +580,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				if len(zones) == 0 {
 					m.err = "No matching timezone. Change the filter."
+					m.fieldErrors = map[int]string{10: m.err}
 					return m, nil
 				}
 				m.config.Timezone = zones[m.selectedTimezone]
+				m.fieldErrors = nil
 				m.screen = network
 				m.err = ""
 				m.blurAll()
@@ -505,11 +616,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				if m.focus == 11 && (key == "space" || key == "left" || key == "right") {
 					m.static = false
+					m.fieldErrors = nil
+					m.err = ""
 					m.blurAll()
 					return m, nil
 				}
 				if m.focus == 12 && (key == "space" || key == "left" || key == "right") {
 					m.selectedInterface = (m.selectedInterface + 1) % len(m.interfaces)
+					delete(m.fieldErrors, 12)
 					return m, nil
 				}
 				if key == "tab" || key == "down" || key == "shift+tab" || key == "up" {
@@ -539,6 +653,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// The final network field is a continue control, with no input value.
 					if err := m.reviewConfig(); err != nil {
 						m.err = err.Error()
+						field := 4
+						if strings.Contains(m.err, "Gateway") {
+							field = 5
+						}
+						if strings.Contains(m.err, "DNS") {
+							field = 6
+						}
+						if strings.Contains(m.err, "interface") {
+							field = 12
+						}
+						m.fieldErrors = map[int]string{field: m.err}
+						m.setFocus(field)
 						return m, nil
 					}
 					m.screen = desktop
@@ -717,7 +843,11 @@ func (m *model) setFocus(i int) tea.Cmd {
 }
 func (m *model) updateField(msg tea.Msg, i int) tea.Cmd {
 	var cmd tea.Cmd
+	before := m.fields[i].Value()
 	m.fields[i], cmd = m.fields[i].Update(msg)
+	if before != m.fields[i].Value() {
+		delete(m.fieldErrors, i)
+	}
 	m.err = ""
 	return cmd
 }
@@ -732,8 +862,24 @@ func validatePassword(p, confirm string) error {
 	return nil
 }
 func (m *model) validateAccount() error {
-	if err := validatePassword(m.fields[1].Value(), m.fields[2].Value()); err != nil {
-		return err
+	m.fieldErrors = map[int]string{}
+	if err := validation.Account(m.fields[0].Value(), "void"); err != nil {
+		m.fieldErrors[0] = err.Error()
+	}
+	if err := validation.Password(m.fields[1].Value()); err != nil {
+		m.fieldErrors[1] = err.Error()
+	}
+	if m.fields[1].Value() != m.fields[2].Value() {
+		m.fieldErrors[2] = "Passwords do not match."
+	}
+	if err := validation.Account("voiduser", m.fields[3].Value()); err != nil {
+		m.fieldErrors[3] = err.Error()
+	}
+	for i := 0; i < 4; i++ {
+		if message := m.fieldErrors[i]; message != "" {
+			m.setFocus(i)
+			return errors.New(message)
+		}
 	}
 	m.config.Username = m.fields[0].Value()
 	m.config.Hostname = m.fields[3].Value()

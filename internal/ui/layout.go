@@ -29,10 +29,10 @@ func (m *model) View() tea.View {
 	} else if m.screen == review {
 		content = m.reviewDialog()
 	} else {
-		header := accent.Render("VOID LINUX") + "  " + muted.Render("TUI INSTALLER")
+		header := accent.Render("Void Installer")
 		version := muted.Render("v" + m.version)
 		header += strings.Repeat(" ", max(1, m.width-4-lipgloss.Width(header)-lipgloss.Width(version))) + version
-		header = lipgloss.NewStyle().Width(m.width-4).Padding(0, 2).Render(header)
+		header = lipgloss.NewStyle().Padding(0, 2).Render(header)
 		sideWidth := 19
 		if m.width < 100 {
 			sideWidth = 13
@@ -40,9 +40,21 @@ func (m *model) View() tea.View {
 		bodyHeight := m.height - 5
 		contentWidth := m.width - sideWidth - 5
 		side := lipgloss.NewStyle().Width(sideWidth).Height(bodyHeight).PaddingLeft(2).Render(m.navigation())
-		body := m.body(contentWidth, bodyHeight)
-		if m.err != "" && m.screen != result {
-			body += "\n\n" + danger.Render(m.err)
+		panelHeight := bodyHeight
+		if m.screen <= utilities {
+			panelHeight -= 3
+		}
+		body := m.body(contentWidth-2, panelHeight)
+		if m.err != "" && m.screen != result && len(m.fieldErrors) == 0 {
+			lines := strings.Split(lipgloss.NewStyle().Width(contentWidth-4).Render(m.err), "\n")
+			limit := min(8, max(2, panelHeight-4))
+			if len(lines) > limit {
+				lines = append(append(lines[:limit-2], "…"), lines[len(lines)-1])
+			}
+			body = lipgloss.NewStyle().MaxHeight(max(1, panelHeight-len(lines)-1)).Render(body) + "\n" + danger.Render(strings.Join(lines, "\n"))
+		}
+		if m.screen <= utilities {
+			body = lipgloss.NewStyle().Height(panelHeight).MaxHeight(panelHeight).Render(body) + "\n\n" + m.continueButton()
 		}
 		body = lipgloss.NewStyle().Width(contentWidth).Height(bodyHeight).MaxHeight(bodyHeight).PaddingLeft(2).Render(body)
 		line := muted.Render(strings.Repeat("─", m.width))
@@ -78,15 +90,15 @@ func (m *model) body(width, height int) string {
 	title := func(s string) string { return accent.Render(s) + "\n\n" }
 	switch m.screen {
 	case welcome:
+		if m.checking || len(m.preparation) > 0 {
+			return m.preparationBody(width)
+		}
 		if !m.checking && !m.ready {
-			return title("Environment check failed") + "Installation is blocked.\nResolve the issue below, then press R to retry."
+			return title("Environment check failed") + "Installation is blocked.\nResolve the issue below, then press R to retry.\nD: inspect detected disks."
 		}
 		s := title("Install Void Linux") + "x86_64 glibc · UEFI · GPT · Btrfs\n\n" +
 			"A minimal system with GRUB, sudo and Snapper.\nUse an already connected wired network.\n\n" +
 			"The selected disk will be erased completely.\nNo disk changes occur before final confirmation.\n\n"
-		if m.checking {
-			return s + "Preparing the live environment " + m.spinner() + "\n\nMissing installation tools are installed automatically.\nXBPS is updated first using the Live repositories.\nKeep the Live network connected; this can take a few minutes."
-		}
 		if m.ready {
 			return s + accent.Render("Local environment checks passed.") + "\nPress Enter to select a repository mirror."
 		}
@@ -109,44 +121,36 @@ func (m *model) body(width, height int) string {
 		}
 		s += line + "\n\n"
 		if m.selectedMirror == len(installer.Mirrors) {
-			s += m.fields[9].View() + "\nExample: https://mirror.example/voidlinux\n"
+			s += m.inputRow("Mirror root", 9, width) + "Example: https://mirror.example/voidlinux\n"
 		} else {
 			s += truncate(installer.Mirrors[m.selectedMirror].URL, width-2) + "\n"
 		}
 		return s + "/current and optional /current/nonfree are automatic.\nThe mirror is saved in the installed system."
 	case disks:
-		s := title("Select installation disk")
-		if len(m.disks) == 0 {
-			return s + "No disks found."
-		}
-		count := max(1, (height-7)/3)
-		start := max(0, m.selectedDisk-count+1)
-		for i := start; i < min(len(m.disks), start+count); i++ {
-			d := m.disks[i]
-			marker := "  "
-			if i == m.selectedDisk {
-				marker = "> "
-			}
-			line := marker + d.Path + "  " + d.Size + "  " + d.Type
-			if i == m.selectedDisk {
-				line = accent.Render(line)
-			}
-			detail := d.Model
-			if !d.Safe {
-				detail = "BLOCKED: " + d.Reason
-			}
-			s += line + "\n  " + truncate(detail, width-4) + "\n\n"
-		}
-		return s + danger.Render("All data on the selected disk will be lost.")
+		return m.diskPanel(width, height)
 	case account:
 		s := title("Account and hostname")
+		var rows []string
+		focusedLine := 0
 		labels := []string{"Username", "Password", "Confirm password", "Hostname"}
 		for i, label := range labels {
-			s += fmt.Sprintf("%-17s %s\n\n", label, m.fields[i].View())
+			if i == m.focus {
+				focusedLine = len(rows)
+			}
+			rows = append(rows, strings.Split(strings.TrimSuffix(m.inputRow(label, i, width), "\n"), "\n")...)
 		}
-		return s + muted.Render("Password: 8–128 printable ASCII characters; no colon.\nThe root account receives the same password.")
+		count := max(1, height-5)
+		start := max(0, min(focusedLine, max(0, len(rows)-count)))
+		if m.focus == 13 {
+			start = max(0, len(rows)-count)
+		}
+		s += strings.Join(rows[start:min(len(rows), start+count)], "\n") + "\n\n"
+		return s + muted.Render("Password: 8–128 ASCII characters; no colon.\nRoot receives the same password.")
 	case timezone:
 		s := title("Select timezone") + "Filter: " + m.fields[10].View() + "\n\n"
+		if message := m.fieldErrors[10]; message != "" {
+			s += danger.Render(message) + "\n"
+		}
 		zones := m.filteredTimezones()
 		if len(zones) == 0 {
 			return s + "No matching timezone. Change the filter."
@@ -164,7 +168,7 @@ func (m *model) body(width, height int) string {
 	case network:
 		s := title("Network configuration")
 		if !m.static {
-			return s + accent.Render("[ DHCP ]") + "    Static IPv4\n\nDHCP needs no additional settings.\n\nSpace: select Static IPv4\nEnter: continue with DHCP"
+			return s + accent.Render("[ DHCP ]") + "    Static IPv4\n\nDHCP needs no additional settings.\n\nSpace: select Static IPv4\nEnter: focus Continue"
 		}
 		mode := "DHCP    [ Static IPv4 ]"
 		iface := "Interface         " + m.interfaces[m.selectedInterface]
@@ -174,14 +178,13 @@ func (m *model) body(width, height int) string {
 		if m.focus == 12 {
 			iface = accent.Render("> " + iface + " (Space: next)")
 		}
-		s += mode + "\n\n" + iface + "\n\n"
-		for i, label := range []string{"Address / CIDR", "Gateway", "DNS server"} {
-			s += fmt.Sprintf("%-17s %s\n\n", label, m.fields[i+4].View())
+		s += mode + "\n\n" + iface + "\n"
+		if message := m.fieldErrors[12]; message != "" {
+			s += danger.Render(message) + "\n"
 		}
-		if m.focus == 7 {
-			s += accent.Render("> Continue")
-		} else {
-			s += muted.Render("Enter after DNS to continue")
+		s += "\n"
+		for i, label := range []string{"Address / CIDR", "Gateway", "DNS server"} {
+			s += m.inputRow(label, i+4, width)
 		}
 		return s
 	case desktop:
@@ -195,15 +198,13 @@ func (m *model) body(width, height int) string {
 			if i == m.selectedDesktop {
 				mark = "(*) "
 			}
-			s += prefix + mark + name + "\n\n"
+			s += prefix + mark + name + "\n"
 		}
-		s += "Firefox and Kitty are optional utilities.\n\n"
+		description := "Firefox and Kitty are optional utilities. Both desktops include SDDM, PipeWire and CJK fonts."
 		if len(m.gpus) == 0 {
-			return s + "No NVIDIA display controller detected."
+			return selectionPanel(s+"\nNo NVIDIA display controller detected.", description, width, height)
 		}
-		for _, g := range m.gpus {
-			s += fmt.Sprintf("NVIDIA 10de:%s at %s\n", g.Device, g.Address)
-		}
+		s += fmt.Sprintf("\n%d NVIDIA display controller(s) detected.\n", len(m.gpus))
 		mark := "[ ]"
 		if m.config.Graphics == "nvidia" {
 			mark = "[V]"
@@ -213,7 +214,10 @@ func (m *model) body(width, height int) string {
 			prefix = "> "
 		}
 		s += "\n" + prefix + mark + " Install NVIDIA driver\n"
-		return s + muted.Render("nvidia requires nonfree; GPU support is checked\nbefore erasure. Legacy-only GPUs are blocked.")
+		if m.desktopFocus == 3 {
+			description = "NVIDIA adds nonfree and linux-headers. GPU support is checked before erasure; legacy-only GPUs are blocked."
+		}
+		return selectionPanel(s, description, width, height)
 	case utilities:
 		s := title("Optional utility packages")
 		packages := installer.UtilityPackages()
@@ -233,14 +237,8 @@ func (m *model) body(width, height int) string {
 			}
 			s += line + "\n"
 		}
-		hint := "SSH stays disabled after installation."
-		switch packages[m.selectedUtility] {
-		case "fcitx5":
-			hint = "Includes Qt5/Qt6, GTK3/GTK4 modules and configtool."
-		case "fcitx5-hangul":
-			hint = ""
-		}
-		return s + fmt.Sprintf("\n%d selected. Space: toggle. Enter: review.\n", len(m.config.Utilities)) + muted.Render(hint)
+		hint := fmt.Sprintf("%d selected. %s", len(m.config.Utilities), utilityDescription(packages[m.selectedUtility]))
+		return selectionPanel(s, hint, width, height)
 	case review:
 		return m.reviewBody(width, height)
 	case installing:
@@ -269,6 +267,14 @@ func (m *model) body(width, height int) string {
 			s += "\nStarting installation engine..."
 		} else {
 			s += "\nCurrent operation: " + stageLabel(m.current)
+		}
+		available := height - lipgloss.Height(s) - 2
+		if available > 0 {
+			s += "\n" + muted.Render("Recent logs (F2: full log)") + "\n"
+			count := min(3, available)
+			for _, entry := range m.logs[max(0, len(m.logs)-count):] {
+				s += truncate(entry, width-2) + "\n"
+			}
 		}
 		return s
 	case result:
@@ -302,17 +308,19 @@ func (m *model) reviewBody(width, height int) string {
 	if m.config.Desktop == "kde" || m.config.Desktop == "niri" {
 		manager = "NetworkManager"
 	}
-	summary := fmt.Sprintf("Disk: %s  %s\n%s\nUser: %s   Hostname: %s\n%s\nNetwork service: %s\nDesktop: %s\n", d.Path, d.Size, d.Model, m.config.Username, m.config.Hostname, m.networkSummary(), manager, m.config.Desktop)
-	driver := "[ ]"
+	driver := "No"
 	if m.config.Graphics == "nvidia" {
-		driver = "[V]"
+		driver = "Yes"
 	}
-	summary += driver + " Install NVIDIA driver\n"
-	summary += "Mirror: " + m.config.Mirror + "/current\n"
-	summary += "Timezone: " + m.config.TimezoneName() + "\n"
-	packages := m.config.SoftwarePackages()
-	if len(packages) > 0 {
-		summary += "Packages: " + strings.Join(packages, ", ") + "\n"
+	summary := fmt.Sprintf("Target     %s · %s\nAccount    %s@%s\nSystem     %s · %s\nDesktop    %s\nNVIDIA     %s\nUtilities  %d selected\n\nDetails\n", d.Path, d.Size, m.config.Username, m.config.Hostname, m.config.TimezoneName(), strings.ToUpper(m.config.Network), desktopName(m.config.Desktop), driver, len(m.config.Utilities))
+	utilities := strings.Join(m.config.Utilities, ", ")
+	if utilities == "" {
+		utilities = "None"
+	}
+	summary += "Utilities: " + utilities + "\nPackages: " + strings.Join(m.config.SoftwarePackages(), ", ") + "\n"
+	summary += "Disk model: " + d.Model + "\nMirror: " + m.config.Mirror + "/current\n"
+	if m.config.Network == "static" {
+		summary += m.networkSummary() + "\n"
 	}
 	summary += "Services: dbus, cronie, bluetoothd, tlp, " + manager
 	if m.config.Desktop != "none" && m.config.Desktop != "" {
@@ -324,6 +332,11 @@ func (m *model) reviewBody(width, height int) string {
 	summary += "\nEFI: 1 GiB FAT32 at /boot/efi\nRoot: remaining space, Btrfs\n@  @home  @snapshots  @log  @cache\nNo swap. Snapper snapshots; no automatic rollback."
 	lines := strings.Split(lipgloss.NewStyle().Width(max(1, width-2)).Render(summary), "\n")
 	count := max(1, height-13)
+	gap := "\n\n"
+	if height < 20 {
+		gap = "\n"
+		count = max(1, height-9)
+	}
 	if m.err != "" {
 		count = max(1, count-2)
 	}
@@ -348,9 +361,9 @@ func (m *model) reviewBody(width, height int) string {
 	if m.err != "" {
 		message = "\n" + danger.Render(truncate(m.err, width))
 	}
-	return accent.Render("Review installation") + "\n\n" + visible +
-		fmt.Sprintf("\n[%d-%d/%d] PgUp/PgDn\n\n", m.reviewOffset+1, min(len(lines), m.reviewOffset+count), len(lines)) +
-		danger.Render("ALL DATA ON "+d.Path+" WILL BE ERASED.") + "\nType " + accent.Render("ERASE "+d.Path) + " to confirm:\n" + m.fields[8].View() + message + "\n\n" + buttons + "\n\n" + muted.Render("Tab Move   Enter Activate   Esc Back")
+	return accent.Render("Review installation") + gap + visible +
+		fmt.Sprintf("\n[%d-%d/%d] PgUp/PgDn", m.reviewOffset+1, min(len(lines), m.reviewOffset+count), len(lines)) + gap +
+		danger.Render("ALL DATA ON "+d.Path+" WILL BE ERASED.") + "\nType " + accent.Render("ERASE "+d.Path) + " to confirm:\n" + m.fields[8].View() + message + gap + buttons + gap + muted.Render("Tab Move   Enter Activate   Esc Back")
 }
 
 func (m *model) reviewDialog() string {

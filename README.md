@@ -55,6 +55,8 @@ Follow Welcome → Mirror → Disk → Account → Timezone → Network → Desk
 
 Use arrows or Tab/Shift+Tab to move, Space to select or toggle, Enter to confirm, and Esc to go back. The final Review appears as a rectangular dialog centered on a black background. PageUp/PageDown scrolls the summary while the erase-confirmation field and Back/Install buttons stay visible. Enter in the field focuses Install; press Enter again on that button to start installation.
 
+Welcome shows each preparation step as running, completed, skipped or failed. Settings screens keep Continue in the same bottom position; Tab focuses it from a selection list, while Enter confirms the current selection and continues. In account and static-network forms, Enter moves through inputs to Continue before submitting. Invalid input is explained below its field. Disk selection separates the list from model, capacity, serial/WWN and blocker details; D on a failed Welcome opens inspection only. Desktop and Utilities keep descriptions below the choices. Review puts the selected desktop, driver and utility count above package/service/storage details. Installation shows the latest few sanitized log lines, with F2 opening the full log.
+
 ## Installation profiles
 
 Choose console-only (CLI), KDE Plasma or Niri. KDE Plasma installs `plasma-desktop`, `sddm`, `kwallet-pam`, `kf6-kwallet` and related packages. Niri installs `niri`, `sddm`, `xdg-desktop-portal-gnome`, `gnome-keyring`, `seahorse` and other packages needed for the session.

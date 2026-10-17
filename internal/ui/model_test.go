@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"void-installer/internal/installer"
 )
 
@@ -34,6 +35,7 @@ func enterAccount(m *model) {
 	m.fields[1].SetValue("Secret-valid-123")
 	m.fields[2].SetValue("Secret-valid-123")
 	m.setFocus(3)
+	press(m, tea.KeyEnter)
 	press(m, tea.KeyEnter)
 	press(m, tea.KeyEnter)
 }
@@ -404,9 +406,18 @@ func TestSoftwareSelectionAndReviewScrolling(t *testing.T) {
 func TestHeaderBuildVersion(t *testing.T) {
 	m := NewWithVersion(context.Background(), "0.4.1-dev")
 	defer m.Shutdown()
-	m.width, m.height = 80, 24
-	if !strings.Contains(m.View().Content, "v0.4.1-dev") {
-		t.Fatal("build version missing from header")
+	for _, width := range []int{80, 100, 160} {
+		m.width, m.height = width, 24
+		lines := strings.Split(ansi.Strip(m.View().Content), "\n")
+		if !strings.Contains(lines[0], "Void Installer") || !strings.Contains(lines[0], "v0.4.1-dev") {
+			t.Fatal("title and version must share the first line")
+		}
+		if lipgloss.Width(lines[0]) != width || !strings.HasSuffix(strings.TrimSpace(lines[0]), "v0.4.1-dev") {
+			t.Fatalf("version must align with the right header margin: width=%d want=%d line=%q", lipgloss.Width(lines[0]), width, lines[0])
+		}
+		if !strings.Contains(lines[1], "─") {
+			t.Fatal("header must not wrap above the separator")
+		}
 	}
 }
 
@@ -517,7 +528,7 @@ func TestAccountTabStaysOnForm(t *testing.T) {
 	m.screen = account
 	m.setFocus(3)
 	press(m, tea.KeyTab)
-	if m.screen != account || m.focus != 0 {
+	if m.screen != account || m.focus != 13 {
 		t.Fatal("Tab must move focus without submitting")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})

@@ -66,7 +66,17 @@ func PreflightContext(parent context.Context) error {
 }
 
 // PrepareLiveContext installs missing installation tools only in a validated Void Live session.
-func PrepareLiveContext(parent context.Context) error { return checkMode(parent, "--prepare-live") }
+func PrepareLiveContext(parent context.Context) error { return PrepareLiveProgressContext(parent, nil) }
+
+// PrepareLiveProgressContext reports only trusted preparation stage markers.
+func PrepareLiveProgressContext(parent context.Context, report func(string, string)) error {
+	dir, err := extractEngine()
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	return preflightScriptProgress(parent, filepath.Join(dir, "install.sh"), report, "--prepare-live")
+}
 
 func CheckLocalContext(parent context.Context) error { return checkMode(parent, "--check-local") }
 func CheckMirrorContext(parent context.Context, mirror string) error {
@@ -86,6 +96,9 @@ func checkMode(parent context.Context, args ...string) error {
 }
 
 func preflightScript(parent context.Context, script string, args ...string) error {
+	return preflightScriptProgress(parent, script, nil, args...)
+}
+func preflightScriptProgress(parent context.Context, script string, report func(string, string), args ...string) error {
 	log, err := os.CreateTemp("", "void-installer-preflight-*.log")
 	if err != nil {
 		return fmt.Errorf("Cannot create a private environment-check log")
@@ -98,8 +111,9 @@ func preflightScript(parent context.Context, script string, args ...string) erro
 	}
 	cmd := exec.CommandContext(ctx, "/bin/bash", append([]string{script}, args...)...)
 	cmd.Env = safeEnv()
-	cmd.Stdout = log
-	cmd.Stderr = log
+	writer := &preparationWriter{log: log, report: report}
+	cmd.Stdout = writer
+	cmd.Stderr = writer
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 	cmd.WaitDelay = 3 * time.Second
@@ -340,4 +354,45 @@ func clean(text, password string) string {
 		}
 		return r
 	}, text)
+}
+
+// Both subprocess streams share this writer, so os/exec serializes writes.
+type preparationWriter struct {
+	log     io.Writer
+	report  func(string, string)
+	pending string
+}
+
+func (w *preparationWriter) Write(p []byte) (int, error) {
+	n, err := w.log.Write(p)
+	if w.report == nil {
+		return n, err
+	}
+	w.pending += string(p[:n])
+	for {
+		line, rest, ok := strings.Cut(w.pending, "\n")
+		if !ok {
+			break
+		}
+		w.pending = rest
+		fields := strings.Fields(line)
+		if len(fields) != 3 || fields[0] != "VOID_PREP" {
+			continue
+		}
+		switch fields[1] {
+		case "environment", "tools", "xbps", "install":
+		default:
+			continue
+		}
+		switch fields[2] {
+		case "running", "completed", "skipped":
+		default:
+			continue
+		}
+		w.report(fields[1], fields[2])
+	}
+	if len(w.pending) > 4096 {
+		w.pending = ""
+	}
+	return n, err
 }

@@ -174,3 +174,13 @@ All 33 Bash fixture groups passed. New mocked scenarios cover missing jq, an alr
 ## 2026-10-16: full build and regression validation completed
 
 After network access became available, all required Go modules downloaded successfully. `make build`, `make check` (ShellCheck 0.11.0) and `go test -race ./...` passed, including the new UI dialog/control tests and all 33 Bash fixture groups. The distribution executable reports 0.4.1-dev and is a stripped, statically linked Linux x86-64 ELF. Both distribution SHA256SUMS entries verified. Installer SHA256: `66f3b2f2d59d4d65cf083b060ca85ded9e0030ea978c21e1ea7b8f1421c5ce80`. This supersedes the earlier dependency-related build/test limitations for the current source. Real Live dependency installation, VM boot and hardware installation remain untested for this revision.
+
+## 2026-10-17: single-line header alignment
+
+UI tests passed, including 80/100/160-column assertions that the title and right-aligned version share the first line and the separator follows immediately. Assertions strip ANSI styling before checking alignment. `make build`, executable version output and both distribution checksum checks passed. No installation was performed.
+
+## 2026-10-17: seven UI improvements
+
+Implemented inline input errors, a consistent Continue position and form submission control, live preparation status, disk details with serial/WWN and blocker guidance, fixed selection descriptions, a compact review summary, and recent installation log previews. Bluetooth/TLP and all engine safety checks remain in place. Disk inspection from failed Welcome cannot advance even when an individual disk is safe. Short review layouts retain the exact erasure field and buttons; the normal installation view shows recent sanitized diagnostics at 80x24.
+
+`make check`, `go test -race ./...`, and `make build` passed. This includes 34 Bash fixture groups, vet, Bash syntax and ShellCheck 0.11.0. New tests cover split preparation markers and invalid markers, subprocess progress, skipped/failed preparation, inline account/gateway errors, explicit account Continue, fixed Continue/description placement, blocked disk details, inspection safety, review ordering and minimum-size log previews. Distribution version output, static Linux x86-64 ELF format and both SHA256SUMS entries verified. No actual Live dependency installation, VM boot or hardware installation was performed for these changes.
