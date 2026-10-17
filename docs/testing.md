@@ -1,5 +1,8 @@
 # Validation record
 
+> [!CAUTION]
+> The installation and boot results documented here were obtained in QEMU virtual machines. They do not establish compatibility with physical hardware. Host-side build, unit, fixture and static checks are reported separately.
+
 ## Latest: timezones and niri configuration tools (0.4.0-dev)
 
 Go tests, the race detector, vet, 32 Bash fixture groups, Bash syntax and ShellCheck passed. New tests cover all 419 bundled timezone names against Go's timezone database, rejection of unknown/traversal/newline values in both boundaries, searchable timezone selection/back navigation, 80x24 layout, niri DHCP/static rendering and removal of competing supplicant service links. Bash validates the original timezone JSON value before command substitution, which would otherwise remove trailing newlines. Package-profile tests cover required fonts, user directories, NetworkManager and niri integration without implicitly selecting Firefox, Kitty or an application launcher.

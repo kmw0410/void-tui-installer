@@ -8,7 +8,7 @@ An installer for the official Void Linux Live ISO, built with a Go/Bubble Tea v2
 
 You are responsible for deciding whether to use this installer and for the consequences of doing so. The authors accept no responsibility for problems resulting from its use.
 
-User-reported test environments include an HP Victus 15-inch laptop (15-fa0051tx, i5-12450H/RTX 3050 Laptop GPU) and QEMU VMs. Results may differ on other systems, and unexpected problems may occur. See the [validation record](docs/testing.md) for the test coverage and unverified cases documented in this repository.
+The test environments are an HP Victus 15 (15-fa0051tx, i5-12450H/RTX 3050 Laptop GPU) and QEMU VMs. Results may differ on other systems, and unexpected problems may occur. See the [validation record](docs/testing.md) for the test coverage and unverified cases documented in this repository.
 
 ## Dependencies
 
