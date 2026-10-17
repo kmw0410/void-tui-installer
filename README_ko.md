@@ -26,9 +26,28 @@ XBPS와 Live 환경의 기본 도구는 미리 제공되어 있어야 합니다.
 
 ## 사용 방법
 
+### 빌드
+
+개발 머신에 Go 1.26 이상, Git, Make를 설치한 뒤 저장소를 복제하고 빌드합니다.
+
+```sh
+git clone https://github.com/kmw0410/void-tui-installer.git
+cd void-tui-installer
+make build
+```
+
+정적으로 링크된 Linux amd64 실행 파일 `dist/void-installer-tui`, 수동 준비 스크립트 `dist/pkg-install.sh`, 체크섬 파일 `dist/SHA256SUMS`가 생성됩니다. 실행 파일을 Live 환경으로 복사하세요. Live 환경에는 Go, Git, 소스 파일이 필요하지 않습니다. 개발 검사를 실행하려면 Bash, jq, ShellCheck, C 컴파일러도 설치합니다.
+
+```sh
+make check
+go test -race ./...
+```
+
+### 실행
+
 공식 x86_64 glibc Live ISO를 UEFI 모드로 부팅하고 Secure Boot를 끈 뒤 네트워크에 연결하세요. 최소 80×24 크기의 터미널에서 root로 실행합니다.
 
-`wget`으로 GitHub에서 실행 파일을 내려받거나 `git clone`으로 저장소를 복제한 뒤, `dist/void-installer-tui`를 Live 환경으로 복사하세요. 저장소만 복제한 경우 실행 파일이 없다면 먼저 개발 머신에서 `make build`로 빌드해야 합니다. 실행 파일에 실행 권한을 부여한 뒤 실행합니다.
+복사한 실행 파일이 있는 디렉터리에서 실행 권한을 부여한 뒤 실행합니다.
 
 ```sh
 chmod +x ./void-installer-tui

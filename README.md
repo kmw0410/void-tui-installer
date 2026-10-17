@@ -26,9 +26,28 @@ XBPS and the standard Live environment tools must already be available. If other
 
 ## Usage
 
+### Build
+
+On a development machine, install Go 1.26 or newer, Git and Make, then clone the repository and build:
+
+```sh
+git clone https://github.com/kmw0410/void-tui-installer.git
+cd void-tui-installer
+make build
+```
+
+This produces a statically linked Linux amd64 executable at `dist/void-installer-tui`, the manual preparation helper `dist/pkg-install.sh`, and `dist/SHA256SUMS`. Copy the executable to the Live environment; Go, Git and the source files are not required there. To run development checks, also install Bash, jq, ShellCheck and a C compiler:
+
+```sh
+make check
+go test -race ./...
+```
+
+### Run
+
 Boot the official x86_64 glibc Live ISO in UEFI mode, disable Secure Boot, and connect to the network. Run the installer as root in a terminal of at least 80×24.
 
-Download the executable from GitHub with `wget`, or clone the repository with `git clone` and copy `dist/void-installer-tui` into the Live environment. If you cloned the source without an executable, build it first on a development machine with `make build`. Make the executable runnable and start it:
+In the directory containing the copied executable, make it runnable and start it:
 
 ```sh
 chmod +x ./void-installer-tui
