@@ -4,6 +4,21 @@
 
 An installer for the official Void Linux Live ISO, built with a Go/Bubble Tea v2 TUI and a Bash installation engine. The target system uses x86_64 glibc, UEFI/GPT, GRUB and Btrfs.
 
+<details>
+<summary>Screenshots</summary>
+<ul>
+  <li><p>1. Welcome and Live environment preparation</p><img src="1.png" alt="Welcome screen showing Live environment preparation stages" width="100%"></li>
+  <li><p>2. Repository mirror</p><img src="2.png" alt="Repository mirror selection with a custom HTTPS mirror" width="100%"></li>
+  <li><p>3. Installation disk</p><img src="3.png" alt="Installation disk selection with capacity, serial and availability details" width="100%"></li>
+  <li><p>4. Account and hostname</p><img src="4.png" alt="Username, masked password and hostname inputs" width="100%"></li>
+  <li><p>5. Timezone</p><img src="5.png" alt="Timezone search with Asia/Seoul selected" width="100%"></li>
+  <li><p>6. Network</p><img src="6.png" alt="Network configuration with DHCP selected" width="100%"></li>
+  <li><p>7. Desktop</p><img src="7.png" alt="Console, KDE Plasma and Niri choices with no NVIDIA GPU detected" width="100%"></li>
+  <li><p>8. Utilities</p><img src="8.png" alt="Optional utility package checkboxes and selection description" width="100%"></li>
+  <li><p>9. Review and erase confirmation</p><img src="9.png" alt="Centered review dialog with installation summary and disk erase confirmation" width="100%"></li>
+</ul>
+</details>
+
 ## Disclaimer
 
 You are responsible for deciding whether to use this installer and for the consequences of doing so. The authors accept no responsibility for problems resulting from its use.
