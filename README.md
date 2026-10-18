@@ -58,12 +58,6 @@ make check
 go test -race ./...
 ```
 
-GitHub Actions validates code pushes to `main`; documentation/image/LICENSE-only pushes and commits containing `[skip ci]` skip automatic CI. To publish, open **Actions → Build and Release → Run workflow**, select `main`, and enter a version such as `0.4.0` or `0.4.0-1` (an optional leading `v` is accepted). Manual runs execute validation even when the commit contains `[skip ci]`. Existing tags/releases and a commit already covered by the previous release are rejected.
-
-After validation, the workflow publishes a regular [GitHub Release](https://github.com/kmw0410/void-tui-installer/releases) titled/tagged `v0.4.0-1`, containing `void-tui-installer-v0.4.0-1` and `SHA256SUMS`. The version is also embedded in the executable. Numbered suffixes are additional release revisions, not automatic prereleases. Release notes contain `## Changes` followed by `- commit subject (7-character hash)` for commits since the previous published release on the same history; the first release includes all history. Workflow commands use `Asia/Seoul`.
-
-The workflow uses GitHub-hosted `ubuntu-latest` runners and installs the required validation/release tools automatically; no self-hosted runner is needed. Go is installed from `go.mod`. Publishing uses `GITHUB_TOKEN` with `contents: write`; test jobs only have read access. Assets are uploaded to a draft before publishing. A failed publish may leave a draft/tag; inspect it before removing it and retrying the same version. Published assets are never overwritten automatically.
-
 ### Run
 
 Boot the official x86_64 glibc Live ISO in UEFI mode, disable Secure Boot, and connect to the network. Run the installer as root in a terminal of at least 80×24.

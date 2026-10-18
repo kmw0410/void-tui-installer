@@ -10,11 +10,6 @@ on:
       - "**/*.jpg"
       - "**/*.jpeg"
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version, for example 0.4.0 or 0.4.0-1"
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -66,7 +61,7 @@ jobs:
 
   release:
     needs: test
-    if: github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -91,10 +86,9 @@ jobs:
           cache-dependency-path: go.sum
       - name: Prepare version and release notes
         id: release
-        env:
-          INPUT_VERSION: ${{ inputs.version }}
-        run: bash .github/scripts/prepare-release.sh "$INPUT_VERSION"
+        run: bash .github/scripts/prepare-release.sh
       - name: Build and package
+        if: steps.release.outputs.publish == 'true'
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
@@ -108,6 +102,7 @@ jobs:
           sha256sum "void-tui-installer-$RELEASE_TAG" > SHA256SUMS
           sha256sum -c SHA256SUMS
       - name: Create draft with assets and publish
+        if: steps.release.outputs.publish == 'true'
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |

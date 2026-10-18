@@ -1,8 +1,12 @@
 GO ?= go
 SHELLCHECK ?= shellcheck
-VERSION ?= 0.4.1-dev
+VERSION ?= 0.4.1
+.DEFAULT_GOAL := build
 
-.PHONY: build test check clean
+.PHONY: version build test check clean
+version:
+	@printf '%s\n' '$(VERSION)'
+
 build:
 	mkdir -p dist
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags '-s -w -X main.version=$(VERSION)' -o dist/void-installer-tui ./cmd/void-installer
