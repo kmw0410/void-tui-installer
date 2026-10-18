@@ -13,11 +13,12 @@ build:
 test:
 	$(GO) test ./...
 	bash tests/bash_test.sh
+	bash tests/release_test.sh
 
 check: test
 	$(GO) vet ./...
-	for script in pkg-install.sh scripts/install.sh scripts/lib/*.sh tests/*.sh; do bash -n "$$script" || exit; done
-	$(SHELLCHECK) -x pkg-install.sh scripts/install.sh scripts/lib/*.sh tests/*.sh
+	for script in pkg-install.sh scripts/install.sh scripts/lib/*.sh tests/*.sh .github/scripts/*.sh; do bash -n "$$script" || exit; done
+	$(SHELLCHECK) -x pkg-install.sh scripts/install.sh scripts/lib/*.sh tests/*.sh .github/scripts/*.sh
 
 clean:
 	rm -rf dist

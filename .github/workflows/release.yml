@@ -1,0 +1,119 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "**/LICENSE"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.jpeg"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.4.0 or 0.4.0-1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  TZ: Asia/Seoul
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: installer-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require main for manual releases
+        if: github.event_name == 'workflow_dispatch'
+        run: test "$GITHUB_REF" = refs/heads/main
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential jq shellcheck
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Check runner tools
+        run: |
+          for tool in make bash jq shellcheck; do
+            command -v "$tool" || exit 1
+          done
+          command -v "$(go env CC)"
+      - name: Run tests, vet, Bash checks and ShellCheck
+        run: make check
+      - name: Run race detector
+        run: go test -race ./...
+
+  release:
+    needs: test
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout tested commit and tags
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Install release tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y make jq file gh
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Prepare version and release notes
+        id: release
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: bash .github/scripts/prepare-release.sh "$INPUT_VERSION"
+      - name: Build and package
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          make build VERSION="$RELEASE_VERSION"
+          test "$(dist/void-installer-tui --version)" = "Void TUI Installer $RELEASE_VERSION"
+          file dist/void-installer-tui | grep -F 'statically linked'
+          mkdir -p dist/release
+          install -m 0755 dist/void-installer-tui "dist/release/void-tui-installer-$RELEASE_TAG"
+          cd dist/release
+          sha256sum "void-tui-installer-$RELEASE_TAG" > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Create draft with assets and publish
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "dist/release/void-tui-installer-$RELEASE_TAG" \
+            dist/release/SHA256SUMS \
+            --target "$GITHUB_SHA" --title "$RELEASE_TAG" \
+            --notes-file dist/release-notes.md --draft
+          gh release edit "$RELEASE_TAG" --draft=false --latest
