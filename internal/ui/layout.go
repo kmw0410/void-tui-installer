@@ -103,8 +103,8 @@ func (m *model) body(width, height int) string {
 		if !m.checking && !m.ready {
 			return title("Environment check failed") + "Installation is blocked.\nResolve the issue below, then press R to retry.\nD: inspect detected disks."
 		}
-		s := title("Install Void Linux") + "x86_64 glibc · UEFI · GPT · Btrfs\n\n" +
-			"A minimal system with GRUB, sudo and Snapper.\nUse an already connected wired network.\n\n" +
+		s := title("Install Void Linux") + "x86_64 glibc · UEFI · GPT · Btrfs / ext4\n\n" +
+			"GRUB and sudo; Snapper with Btrfs.\nUse an already connected wired network.\n\n" +
 			"The selected disk will be erased completely.\nNo disk changes occur before final confirmation.\n\n"
 		if m.ready {
 			return s + accent.Render("Local environment checks passed.") + "\nPress Enter to select a repository mirror."
@@ -288,6 +288,8 @@ func (m *model) body(width, height int) string {
 				symbol = "[✓]"
 			case "failed":
 				symbol = "[!]"
+			case "skipped":
+				symbol = "[-]"
 			}
 			s += fmt.Sprintf("%s %s\n", symbol, stageLabel(name))
 		}
@@ -316,7 +318,11 @@ func (m *model) body(width, height int) string {
 			logPath = "\n\nLog: " + m.session.LogPath
 		}
 		if m.success {
-			return title("Installation complete") + "Void Linux was installed successfully.\n\nThe engine verified the installation and unmounted\nthe target filesystems.\n\nExit the installer, remove the installation medium,\nand reboot into your new system.\n\nUse Snapper to inspect snapshots.\nAutomatic rollback is not configured." + logPath
+			note := "Use Snapper to inspect snapshots.\nAutomatic rollback is not configured."
+			if m.config.FilesystemName() == "ext4" {
+				note = "Root filesystem: ext4.\nSnapshot configuration was skipped."
+			}
+			return title("Installation complete") + "Void Linux was installed successfully.\n\nThe engine verified the installation and unmounted\nthe target filesystems.\n\nExit the installer, remove the installation medium,\nand reboot into your new system.\n\n" + note + logPath
 		}
 		return title("Installation did not complete") + danger.Render(m.err) + "\n\nLast operation: " + stageLabel(m.current) + "\n\nThe target disk may contain an incomplete system.\nPress F2 to inspect the installation logs.\nReview cleanup errors before rebooting." + logPath
 	}
@@ -360,7 +366,12 @@ func (m *model) reviewBody(width, height int) string {
 	if m.config.Graphics == "nvidia" {
 		summary += "\nAdditional repository: current/nonfree"
 	}
-	summary += "\nEFI: 1 GiB FAT32 at /boot/efi\nRoot: remaining space, Btrfs\n@  @home  @snapshots  @log  @cache\nNo swap. Snapper snapshots; no automatic rollback."
+	summary += "\nEFI: 1 GiB FAT32 at /boot/efi\nRoot: remaining space, " + m.config.FilesystemName()
+	if m.config.FilesystemName() == "btrfs" {
+		summary += "\n@  @home  @snapshots  @log  @cache\nNo swap. Snapper snapshots; no automatic rollback."
+	} else {
+		summary += "\n/home, logs and cache are ordinary directories.\nNo swap or Snapper snapshots."
+	}
 	lines := strings.Split(lipgloss.NewStyle().Width(max(1, width-2)).Render(summary), "\n")
 	count := max(1, height-13)
 	gap := "\n\n"
@@ -440,7 +451,7 @@ func (m *model) help() string {
 		return "↑↓ / Tab Move   Enter Check and continue   Esc Back"
 	}
 	if m.screen == disks {
-		return "↑↓ / Tab Move   Enter Confirm   Esc Back"
+		return "↑↓ Disk   ←→ / Space Filesystem   Enter Continue   Esc Back"
 	}
 	if m.screen == timezone {
 		return "Type Filter   ↑↓ / PgUp/PgDn Select   Enter Continue   Esc Back"
@@ -467,7 +478,7 @@ func stageLabel(s string) string {
 	case "partitioning":
 		return "Creating partitions"
 	case "filesystems":
-		return "Creating and mounting Btrfs"
+		return "Creating and mounting filesystems"
 	case "bootstrap":
 		return "Installing system and selected packages"
 	case "system":

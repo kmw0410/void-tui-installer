@@ -35,7 +35,7 @@ func (m *model) preparationBody(width int) string {
 	}
 	s += "\n"
 	if m.preparation["install"] == "running" {
-		s += lipgloss.NewStyle().Width(width-2).Render("Installing: jq, gptfdisk, parted, dosfstools, btrfs-progs, psmisc") + "\n"
+		s += lipgloss.NewStyle().Width(width-2).Render("Installing: jq, gptfdisk, parted, dosfstools, btrfs-progs, e2fsprogs, psmisc") + "\n"
 	}
 	if m.checking {
 		s += muted.Render("Keep the Live network connected. Please wait.")
@@ -89,7 +89,7 @@ func (m *model) diskPanel(width, height int) string {
 		return s + "No disks found."
 	}
 	selected := max(0, min(m.selectedDisk, len(m.disks)-1))
-	count := max(1, height-14)
+	count := max(1, height-17)
 	start := max(0, selected-count+1)
 	for i := start; i < min(len(m.disks), start+count); i++ {
 		d := m.disks[i]
@@ -135,6 +135,15 @@ func (m *model) diskPanel(width, height int) string {
 		s += muted.Render(truncate(action, width-2)) + "\n"
 	} else {
 		s += danger.Render("All data on this disk will be erased.") + "\n"
+	}
+	if !m.diskInspection {
+		btrfs, ext4 := "(*) Btrfs", "( ) ext4"
+		note := "Compression and Snapper snapshots."
+		if m.config.FilesystemName() == "ext4" {
+			btrfs, ext4 = "( ) Btrfs", "(*) ext4"
+			note = "Single root filesystem; no snapshots."
+		}
+		s += "\nRoot filesystem: " + btrfs + "   " + ext4 + "\n" + muted.Render(truncate(note, width-2))
 	}
 	return s
 }

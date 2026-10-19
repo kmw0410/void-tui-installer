@@ -7,6 +7,7 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 umask 077
 REPOSITORY=https://repo-default.voidlinux.org/current
 PACKAGES=(base-system linux grub-x86_64-efi btrfs-progs dosfstools snapper sudo dhcpcd cronie tzdata)
+FILESYSTEM=btrfs
 REPOSITORIES=(-R "$REPOSITORY")
 QUERY_REPOSITORIES=(--repository="$REPOSITORY")
 DESKTOP=none

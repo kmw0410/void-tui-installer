@@ -40,7 +40,7 @@ func ParseEvent(line []byte) (Event, error) {
 				valid = true
 			}
 		}
-		if !valid || (e.Status != "running" && e.Status != "completed" && e.Status != "failed") || e.Level != "" {
+		if !valid || (e.Status != "running" && e.Status != "completed" && e.Status != "failed" && !(e.Name == "snapper" && e.Status == "skipped")) || e.Level != "" {
 			return e, fmt.Errorf("Invalid stage event")
 		}
 	case "log":
@@ -61,6 +61,7 @@ type protocol struct {
 	next                    int
 	active                  string
 	failed, result, success bool
+	allowSnapshotSkip       bool
 }
 
 func (p *protocol) accept(e Event) error {
@@ -69,6 +70,9 @@ func (p *protocol) accept(e Event) error {
 	}
 	switch e.Type {
 	case "stage":
+		if e.Status == "skipped" && (e.Name != "snapper" || !p.allowSnapshotSkip) {
+			return fmt.Errorf("The selected filesystem requires this installation stage")
+		}
 		if e.Status == "running" {
 			if p.active != "" || p.next >= len(Stages) || (e.Name != Stages[p.next] && !(p.failed && e.Name == "cleanup")) {
 				return fmt.Errorf("Invalid engine stage order")

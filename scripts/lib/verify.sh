@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 verify_installation() {
     local path sub package
-    for sub in @ @home @log @cache @snapshots; do
-        case "$sub" in @) path=;; @home) path=/home;; @log) path=/var/log;; @cache) path=/var/cache;; @snapshots) path=/.snapshots;; esac
-        verify_mount "$TARGET$path" "$sub"
-    done
+    verify_root_mount
+    if [[ $FILESYSTEM == btrfs ]]; then
+        for sub in @ @home @log @cache @snapshots; do
+            case "$sub" in @) path=;; @home) path=/home;; @log) path=/var/log;; @cache) path=/var/cache;; @snapshots) path=/.snapshots;; esac
+            verify_mount "$TARGET$path" "$sub"
+        done
+    fi
     chrun findmnt --verify --tab-file /etc/fstab
     for package in "${PACKAGES[@]}"; do
         chrun xbps-query -p pkgver "$package"
@@ -29,6 +32,6 @@ verify_installation() {
     for path in "$network_service" dbus cronie bluetoothd tlp; do
         [[ -L $TARGET/etc/runit/runsvdir/default/$path ]] || fail 'Required service is not enabled.'
     done
-    chrun snapper --no-dbus -c root list
+    if [[ $FILESYSTEM == btrfs ]]; then chrun snapper --no-dbus -c root list; fi
     run sync
 }

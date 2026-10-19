@@ -14,6 +14,6 @@ command -v xbps-install >/dev/null || { printf 'Required command is missing: xbp
 
 # XBPS must be updated in its own transaction before installing other packages.
 xbps-install -Sy xbps
-xbps-install -Sy jq gptfdisk parted dosfstools btrfs-progs psmisc
+xbps-install -Sy jq gptfdisk parted dosfstools btrfs-progs e2fsprogs psmisc
 
 printf 'Live installation tools are ready. Run ./void-installer-tui.\n'

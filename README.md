@@ -2,7 +2,7 @@
 
 # Void Linux TUI Installer (Unofficial)
 
-An installer for the official Void Linux Live ISO, built with a Go/Bubble Tea v2 TUI and a Bash installation engine. The target system uses x86_64 glibc, UEFI/GPT, GRUB and Btrfs.
+An installer for the official Void Linux Live ISO, built with a Go/Bubble Tea v2 TUI and a Bash installation engine. The target system uses x86_64 glibc, UEFI/GPT, GRUB and Btrfs or ext4.
 
 <details>
 <summary>Screenshots</summary>
@@ -37,6 +37,7 @@ The installer requires these packages:
 - `parted`
 - `dosfstools`
 - `btrfs-progs`
+- `e2fsprogs`
 - `psmisc`
 
 XBPS and the standard Live environment tools must already be available. If other installation tools are missing or cannot be found, the welcome screen updates XBPS first and installs the required packages automatically. If all tools are present, it skips package installation. You can also prepare the tools manually with the separate script (`bash ./pkg-install.sh`). Package installation uses the Live environment's configured repositories and requires an already working network connection.
@@ -91,6 +92,8 @@ lsblk -d -o NAME,SIZE,TYPE,SERIAL,WWN
 
 Follow Welcome → Mirror → Disk → Account → Timezone → Network → Desktop → Packages → Review. In Timezone, type a city or region, navigate with the arrow keys or PageUp/PageDown, and press Enter to select a timezone such as `Asia/Seoul`. The default is UTC; no NTP service is added.
 
+On Disk, use Up/Down to choose a disk and Left/Right or Space to select Btrfs (default) or ext4 before continuing. The filesystem is included in Review and saved settings. Older settings without this field retain Btrfs. Ext4 uses a single root filesystem without automatic Snapper configuration.
+
 Use arrows or Tab/Shift+Tab to move, Space to select or toggle, Enter to confirm, and Esc to go back. The final Review appears as a rectangular dialog centered on a black background. PageUp/PageDown scrolls the summary while the erase-confirmation field and Back/Install buttons stay visible. Enter in the field focuses Install; press Enter again on that button to start installation.
 
 Review runs non-destructive checks of the Live environment, network adapter, mirror/dependencies, NVIDIA support, disk safety and required capacity. The result stays visible above the summary; scroll for individual results and capacity details. Install remains disabled until checks pass for the current settings and the exact erase phrase is entered. Ctrl+R retries failed checks. The engine repeats safety checks before erasure.
@@ -135,6 +138,10 @@ The option adds the nonfree repository and `linux-headers`. Before erasure, the 
 
 ## Installed layout
 
+Both choices use a 1 GiB FAT32 EFI partition and the remaining space for root. With ext4, `/` uses `defaults,noatime` with root filesystem checking enabled; `/home`, logs and cache are ordinary directories on that filesystem. Snapper is not automatically installed or configured, and its installation stage is marked skipped.
+
+The default Btrfs layout is:
+
 | Partition / subvolume | Mount | Configuration |
 | --- | --- | --- |
 | EFI, 1 GiB FAT32 | `/boot/efi` | GRUB UEFI and fallback loader |
@@ -144,6 +151,6 @@ The option adds the nonfree repository and `linux-headers`. Before erasure, the 
 | `@log` | `/var/log` | Excluded from root snapshots |
 | `@cache` | `/var/cache` | Excluded from root snapshots |
 
-The root filesystem and root GPT partition have no label. `/etc/fstab` uses UUIDs. No swap, encryption, dual boot or custom partitioning is provided. GRUB explicitly boots `subvol=@`; the default Btrfs subvolume stays unchanged. The engine verifies EFI files, GRUB configuration, matching kernel/initramfs files, mounts, accounts, sudo, packages, selected graphical configuration and Snapper before unmounting the target.
+The root filesystem and root GPT partition have no label. `/etc/fstab` uses UUIDs. No swap, encryption, dual boot or custom partitioning is provided. Btrfs boots with `subvol=@`; ext4 boots its root UUID without subvolume options. The engine verifies EFI files, GRUB configuration, matching kernel/initramfs files, filesystem type and device, accounts, sudo, packages, selected graphical configuration and, on Btrfs, Snapper before unmounting the target.
 
-Snapper creates an initial root snapshot and uses Void's packaged hourly cron helper with cronie and D-Bus. Timeline retention is 5 hourly, 7 daily, 4 weekly, 3 monthly and 0 yearly. The engine creates the Snapper configuration before mounting the separate `@snapshots` subvolume to avoid an existing-directory conflict. Home, logs, cache and EFI contents are outside root snapshots. **Automatic rollback, restoration tools and grub-btrfs integration are not provided.** Snapper's default-subvolume rollback does not switch the explicit `subvol=@` boot root.
+On Btrfs, Snapper creates an initial root snapshot and uses Void's packaged hourly cron helper with cronie and D-Bus. Timeline retention is 5 hourly, 7 daily, 4 weekly, 3 monthly and 0 yearly. The engine creates the Snapper configuration before mounting the separate `@snapshots` subvolume to avoid an existing-directory conflict. Home, logs, cache and EFI contents are outside root snapshots. **Automatic rollback, restoration tools and grub-btrfs integration are not provided.** Snapper's default-subvolume rollback does not switch the explicit `subvol=@` boot root.

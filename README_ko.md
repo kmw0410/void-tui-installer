@@ -2,7 +2,7 @@
 
 # Void Linux TUI 설치 프로그램 (비공식)
 
-공식 Void Linux Live ISO에서 실행하는 설치 프로그램입니다. Go/Bubble Tea v2 기반 TUI와 Bash 설치 엔진으로 구성되어 있으며, 설치 대상은 x86_64 glibc, UEFI/GPT, GRUB, Btrfs 구성입니다.
+공식 Void Linux Live ISO에서 실행하는 설치 프로그램입니다. Go/Bubble Tea v2 기반 TUI와 Bash 설치 엔진으로 구성되어 있으며, 설치 대상은 x86_64 glibc, UEFI/GPT, GRUB, Btrfs 또는 ext4 구성입니다.
 
 <details>
 <summary>스크린샷</summary>
@@ -37,6 +37,7 @@
 - `parted`
 - `dosfstools`
 - `btrfs-progs`
+- `e2fsprogs`
 - `psmisc`
 
 XBPS와 Live 환경의 기본 도구는 미리 제공되어 있어야 합니다. 나머지 설치 도구가 없거나 인식되지 않으면 초기 화면에서 XBPS를 먼저 갱신한 뒤 필요한 패키지를 자동으로 설치합니다. 모든 도구가 있으면 패키지 설치를 건너뜁니다. 별도 스크립트(`bash ./pkg-install.sh`)로 수동 준비할 수도 있습니다. 패키지 설치에는 Live 환경에 설정된 저장소와 이미 연결된 네트워크가 필요합니다.
@@ -91,6 +92,8 @@ lsblk -d -o NAME,SIZE,TYPE,SERIAL,WWN
 
 Welcome → Mirror → Disk → Account → Timezone → Network → Desktop → Packages → Review 순서로 진행합니다. Timezone에서는 도시나 지역 이름을 입력하고 방향키 또는 PageUp/PageDown으로 이동한 뒤 Enter로 시간대(예: `Asia/Seoul`)를 선택합니다. 기본값은 UTC이며 NTP 서비스는 추가하지 않습니다.
 
+Disk에서 위/아래 방향키로 디스크를 고르고 좌/우 방향키 또는 Space로 Btrfs(기본값)와 ext4를 선택한 뒤 진행합니다. 선택한 파일시스템은 Review와 저장 설정에 반영됩니다. 해당 항목이 없는 이전 설정은 Btrfs로 처리합니다. ext4는 단일 루트 파일시스템을 사용하며 Snapper를 자동 구성하지 않습니다.
+
 방향키 또는 Tab/Shift+Tab으로 이동하고, Space로 선택·체크를 전환하고, Enter로 확정하며, Esc로 이전 화면으로 돌아갑니다. 마지막 Review는 검은 배경 중앙의 사각형 창으로 표시됩니다. PageUp/PageDown으로 요약을 스크롤할 수 있으며, 삭제 확인 입력과 Back/Install 버튼은 계속 표시됩니다. 입력칸에서 Enter를 누르면 Install로 이동하고, 해당 버튼에서 Enter를 한 번 더 눌러야 설치가 시작됩니다.
 
 Review에서는 Live 환경, 네트워크 어댑터, 미러·의존성, NVIDIA 지원, 디스크 안전성, 필요 용량을 디스크 변경 없이 검사합니다. 요약 위에 검사 상태를 표시하며, 스크롤하면 항목별 결과와 용량을 확인할 수 있습니다. 현재 설정에 대한 검사가 통과하고 정확한 삭제 확인 문구를 입력해야 Install이 활성화됩니다. 실패하면 Ctrl+R로 재검사합니다. 실제 설치 엔진도 삭제 전에 안전 검사를 반복합니다.
@@ -135,6 +138,10 @@ Niri에는 다음 실행 단축키를 제공합니다. Mod는 Super 키(일반�
 
 ## 설치 후 구성
 
+두 파일시스템 모두 1 GiB FAT32 EFI 파티션과 나머지 공간의 루트 파티션을 사용합니다. ext4에서는 `/`를 `defaults,noatime`으로 마운트하고 루트 파일시스템 검사를 활성화합니다. `/home`, 로그, 캐시는 같은 파일시스템의 일반 디렉터리입니다. Snapper를 자동 설치·구성하지 않으며 해당 설치 단계는 생략으로 표시합니다.
+
+기본 Btrfs 구성은 다음과 같습니다.
+
 | 파티션 / 서브볼륨 | 마운트 위치 | 설정 |
 | --- | --- | --- |
 | EFI, 1 GiB FAT32 | `/boot/efi` | GRUB UEFI 및 fallback 로더 |
@@ -144,6 +151,6 @@ Niri에는 다음 실행 단축키를 제공합니다. Mod는 Super 키(일반�
 | `@log` | `/var/log` | 루트 스냅샷에서 제외 |
 | `@cache` | `/var/cache` | 루트 스냅샷에서 제외 |
 
-루트 파일시스템과 루트 GPT 파티션에는 라벨을 붙이지 않습니다. `/etc/fstab`은 UUID를 사용합니다. swap, 암호화, 듀얼 부팅, 사용자 지정 파티션 분할은 제공하지 않습니다. GRUB은 명시적으로 `subvol=@`를 부팅하며 기본 Btrfs 서브볼륨은 변경하지 않습니다. 엔진은 대상 마운트를 해제하기 전에 EFI 파일, GRUB 설정, 서로 대응하는 커널/initramfs 파일, 마운트, 계정, sudo, 패키지, 선택한 그래픽 설정과 Snapper를 검증합니다.
+루트 파일시스템과 루트 GPT 파티션에는 라벨을 붙이지 않습니다. `/etc/fstab`은 UUID를 사용합니다. swap, 암호화, 듀얼 부팅, 사용자 지정 파티션 분할은 제공하지 않습니다. Btrfs는 `subvol=@`로 부팅하고 ext4는 서브볼륨 옵션 없이 루트 UUID로 부팅합니다. 엔진은 대상 마운트를 해제하기 전에 EFI 파일, GRUB 설정, 서로 대응하는 커널/initramfs 파일, 파일시스템 종류·장치, 계정, sudo, 패키지, 선택한 그래픽 설정과 Btrfs의 Snapper를 검증합니다.
 
-Snapper는 최초 루트 스냅샷을 생성하고 cronie 및 D-Bus와 함께 Void 패키지의 시간별 cron 도우미를 사용합니다. 타임라인 보존 개수는 시간별 5개, 일별 7개, 주별 4개, 월별 3개, 연별 0개입니다. 기존 디렉터리 충돌을 피하기 위해 별도의 `@snapshots` 서브볼륨을 마운트하기 전에 Snapper 설정을 생성합니다. 홈, 로그, 캐시, EFI 내용은 루트 스냅샷에 포함되지 않습니다. **자동 롤백, 복원 도구, grub-btrfs 통합은 제공하지 않습니다.** Snapper의 기본 서브볼륨 롤백은 명시적인 `subvol=@` 부팅 루트를 전환하지 않습니다.
+Btrfs에서는 Snapper가 최초 루트 스냅샷을 생성하고 cronie 및 D-Bus와 함께 Void 패키지의 시간별 cron 도우미를 사용합니다. 타임라인 보존 개수는 시간별 5개, 일별 7개, 주별 4개, 월별 3개, 연별 0개입니다. 기존 디렉터리 충돌을 피하기 위해 별도의 `@snapshots` 서브볼륨을 마운트하기 전에 Snapper 설정을 생성합니다. 홈, 로그, 캐시, EFI 내용은 루트 스냅샷에 포함되지 않습니다. **자동 롤백, 복원 도구, grub-btrfs 통합은 제공하지 않습니다.** Snapper의 기본 서브볼륨 롤백은 명시적인 `subvol=@` 부팅 루트를 전환하지 않습니다.

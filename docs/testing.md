@@ -3,6 +3,12 @@
 > [!CAUTION]
 > The installation and boot results documented here were obtained in QEMU virtual machines. They do not establish compatibility with physical hardware. Host-side build, unit, fixture and static checks are reported separately.
 
+## 2026-10-19: ext4 support and user testing
+
+Added Disk filesystem selection, compatible public/saved configuration, filesystem-specific packages, guarded ext4 formatting, UUID fstab/GRUB boot, root mount verification and a skipped Snapper stage. Existing fixtures were updated for the filesystems module and e2fsprogs preparation; new Go/Bash test cases were added for defaults, validation, package/settings selection, protocol skip policy, disk-screen controls and mocked ext4 formatting/fstab. At the user's request, the agent ran only make build: no Go tests, Bash fixtures, race checks, ShellCheck, VM boot or actual installation. These automated tests remain unexecuted for this change.
+
+The user subsequently reported successful testing of the build and requested publication of the changes. The tested binary SHA-256 was b116c3d8f47e2e006c9fa50c9d451d6dc4aab12d86a589fe68f06f4063998cff. Exact test steps, filesystem coverage and reboot results were not provided, so no additional coverage is inferred.
+
 ## Latest: timezones and niri configuration tools (0.4.0-dev)
 
 Go tests, the race detector, vet, 32 Bash fixture groups, Bash syntax and ShellCheck passed. New tests cover all 419 bundled timezone names against Go's timezone database, rejection of unknown/traversal/newline values in both boundaries, searchable timezone selection/back navigation, 80x24 layout, niri DHCP/static rendering and removal of competing supplicant service links. Bash validates the original timezone JSON value before command substitution, which would otherwise remove trailing newlines. Package-profile tests cover required fonts, user directories, NetworkManager and niri integration without implicitly selecting Firefox, Kitty or an application launcher.

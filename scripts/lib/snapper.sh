@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 configure_snapper() {
+    [[ $FILESYSTEM == btrfs ]] || fail 'Snapper configuration requires Btrfs.'
     # Snapper 0.13 calls systemctl for templates with TIMELINE_CREATE=yes.
     # Enable the cron policy only after creating the config without that hook.
     local template=$TARGET/etc/snapper/config-templates/installer-root

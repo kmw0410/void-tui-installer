@@ -24,11 +24,15 @@ type Config struct {
 	Utilities    []string `json:"utilities"`
 	Mirror       string   `json:"mirror"`
 	Timezone     string   `json:"timezone"`
+	Filesystem   string   `json:"filesystem"`
 }
 
 func (c Config) Validate() error {
 	if c.Version != 1 {
 		return fmt.Errorf("Unsupported configuration version")
+	}
+	if c.FilesystemName() != "btrfs" && c.FilesystemName() != "ext4" {
+		return fmt.Errorf("Select Btrfs or ext4 for the root filesystem")
 	}
 	if !regexp.MustCompile(`^/dev/[a-zA-Z0-9_-]+$`).MatchString(c.Disk) {
 		return fmt.Errorf("Invalid disk path")
@@ -60,4 +64,11 @@ func (c Config) Validate() error {
 		return fmt.Errorf("Type ERASE followed by the exact disk path to confirm data loss")
 	}
 	return nil
+}
+
+func (c Config) FilesystemName() string {
+	if c.Filesystem == "" {
+		return "btrfs"
+	}
+	return c.Filesystem
 }

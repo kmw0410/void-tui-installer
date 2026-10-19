@@ -4,7 +4,7 @@ set -Eeuo pipefail
 set +x
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 # Modules are trusted installation resources, never user input.
-for module in common mirror config session software disk preflight btrfs bootstrap system network grub snapper verify; do
+for module in common mirror config session software disk preflight btrfs filesystems bootstrap system network grub snapper verify; do
     # shellcheck source=/dev/null
     source "$SCRIPT_DIR/lib/$module.sh"
 done
@@ -55,7 +55,12 @@ main() {
     stage network configure_network
     stage software configure_software
     stage grub configure_grub
-    stage snapper configure_snapper
+    if [[ $FILESYSTEM == btrfs ]]; then
+        stage snapper configure_snapper
+    else
+        event stage running snapper
+        event stage skipped snapper
+    fi
     stage verification verify_installation
     stage cleanup cleanup
     FINISHED=1

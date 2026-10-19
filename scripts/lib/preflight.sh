@@ -22,7 +22,7 @@ preflight_live_environment() {
 preflight_environment() {
     preflight_live_environment
     local cmd
-    for cmd in jq awk lsblk findmnt mountpoint mount umount blkid swapon fuser sgdisk partprobe udevadm mkfs.vfat mkfs.btrfs btrfs xbps-install xbps-query chroot flock head find readlink grep sed cp mkdir rmdir rm mktemp chmod ln sync cat uname sleep od tr timeout stat; do
+    for cmd in jq awk lsblk findmnt mountpoint mount umount blkid swapon fuser sgdisk partprobe udevadm mkfs.vfat mkfs.btrfs mkfs.ext4 btrfs xbps-install xbps-query chroot flock head find readlink grep sed cp mkdir rmdir rm mktemp chmod ln sync cat uname sleep od tr timeout stat; do
         command -v "$cmd" >/dev/null || fail "Required command is missing: $cmd"
     done
 }
@@ -37,7 +37,7 @@ prepare_live_environment() {
         command -v "$cmd" >/dev/null || fail "Required base command is missing: $cmd"
     done
     acquire_installer_lock
-    for cmd in jq sgdisk partprobe mkfs.vfat mkfs.btrfs btrfs fuser; do
+    for cmd in jq sgdisk partprobe mkfs.vfat mkfs.btrfs mkfs.ext4 btrfs fuser; do
         if ! command -v "$cmd" >/dev/null; then
             printf 'Missing Live tool: %s\n' "$cmd" >&2
             missing=1
@@ -50,7 +50,7 @@ prepare_live_environment() {
         preflight_command 'Live XBPS update' xbps-install -Sy xbps
         preparation_progress xbps completed
         preparation_progress install running
-        preflight_command 'Live installation tools' xbps-install -Sy jq gptfdisk parted dosfstools btrfs-progs psmisc
+        preflight_command 'Live installation tools' xbps-install -Sy jq gptfdisk parted dosfstools btrfs-progs e2fsprogs psmisc
         preflight_environment
         preparation_progress install completed
     else

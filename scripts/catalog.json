@@ -1,4 +1,6 @@
 {
+  "base": ["base-system", "linux", "grub-x86_64-efi", "dosfstools", "sudo", "dhcpcd", "cronie", "dbus", "tzdata"],
+  "filesystems": {"btrfs": ["btrfs-progs", "snapper"], "ext4": ["e2fsprogs"]},
   "common": ["bluez", "tlp"],
   "utilities": ["wget", "curl", "vim", "nano", "git", "openssh", "firefox", "kitty", "bash-completion", "rsync", "zip", "unzip", "btop", "ripgrep", "fcitx5", "fcitx5-hangul", "wl-clipboard", "jq", "pciutils", "usbutils"],
   "fcitx": ["fcitx5", "fcitx5-qt", "fcitx5-qt5", "fcitx5-qt6", "fcitx5-gtk", "fcitx5-gtk+3", "fcitx5-gtk4", "fcitx5-configtool"],

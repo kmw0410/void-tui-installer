@@ -13,7 +13,7 @@ import (
 const settingsLimit = 65536
 
 // Only these public fields may cross the settings-file boundary.
-var settingsFields = []string{"version", "disk", "identity", "username", "hostname", "network", "interface", "address", "gateway", "dns", "desktop", "graphics", "utilities", "mirror", "timezone"}
+var settingsFields = []string{"version", "disk", "identity", "username", "hostname", "network", "interface", "address", "gateway", "dns", "desktop", "graphics", "utilities", "mirror", "timezone", "filesystem"}
 
 type settingsFile struct {
 	Version       int                        `json:"settings_version"`

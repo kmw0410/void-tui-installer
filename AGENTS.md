@@ -2,7 +2,7 @@
 
 ## 프로젝트 개요와 구조
 
-이 프로젝트는 공식 Void Linux Live ISO에서 실행하는 Go/Bubble Tea v2 TUI와 Bash 설치 엔진이다. 설치 대상은 x86_64 glibc, UEFI/GPT, GRUB, Btrfs이며 개발 호스트에서 실제 설치를 실행하지 않는다.
+이 프로젝트는 공식 Void Linux Live ISO에서 실행하는 Go/Bubble Tea v2 TUI와 Bash 설치 엔진이다. 설치 대상은 x86_64 glibc, UEFI/GPT, GRUB, Btrfs/ext4이며 개발 호스트에서 실제 설치를 실행하지 않는다.
 
 - `cmd/void-installer/`: 실행 진입점과 CLI 옵션.
 - `internal/ui/`: 화면, 입력, 레이아웃, 설치 세션 UI.
@@ -10,7 +10,7 @@
 - `internal/validation/`: 입력값 검증.
 - `scripts/install.sh`, `scripts/lib/`: Bash 설치 엔진과 단계별 구현.
 - `scripts/embed.go`: 설치 스크립트와 JSON 자료를 실행 파일에 포함한다.
-- `scripts/catalog.json`: Go와 Bash가 공유하는 패키지 허용 목록.
+- `scripts/catalog.json`: Go와 Bash가 공유하는 기본·파일시스템·데스크톱 패키지 구성.
 - `scripts/timezones.json`: 양쪽에서 공유하는 시간대 허용 목록.
 - `tests/`: Bash fixture 테스트와 QEMU 검증 도구.
 - `docs/architecture.md`: 구성, 프로토콜, 보안 경계와 설계.

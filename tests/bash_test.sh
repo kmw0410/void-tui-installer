@@ -9,6 +9,7 @@ source "$ROOT_DIR/scripts/lib/config.sh"
 source "$ROOT_DIR/scripts/lib/software.sh"
 source "$ROOT_DIR/scripts/lib/disk.sh"
 source "$ROOT_DIR/scripts/lib/btrfs.sh"
+source "$ROOT_DIR/scripts/lib/filesystems.sh"
 source "$ROOT_DIR/scripts/lib/network.sh"
 source "$ROOT_DIR/scripts/lib/session.sh"
 source "$ROOT_DIR/scripts/lib/system.sh"
@@ -26,6 +27,18 @@ CONFIG='{"version":1,"disk":"/dev/vda","identity":"252:0 21474836480 512 test","
 GOOD=$CONFIG
 validate_config
 pass 'valid DHCP configuration'
+(
+    CONFIG=$(jq '.filesystem="ext4"' <<< "$GOOD")
+    validate_config
+    select_packages
+    [[ $FILESYSTEM == ext4 && " ${PACKAGES[*]} " == *' e2fsprogs '* ]]
+    [[ " ${PACKAGES[*]} " != *' snapper '* && " ${PACKAGES[*]} " != *' btrfs-progs '* ]]
+)
+for filesystem in xfs $'ext4\n' '../ext4'; do
+    reject "$(jq --arg fs "$filesystem" '.filesystem=$fs' <<< "$GOOD")"
+done
+reject "$(jq '.filesystem=true' <<< "$GOOD")"
+pass 'filesystem selections default to Btrfs and validate ext4 independently'
 for field in disk identity username hostname network interface address gateway dns confirmation desktop graphics mirror timezone; do
     for control in '\n' '\u0000' '\t' '\u007f'; do
         reject "$(jq --arg field "$field" --argjson control "\"$control\"" '.[$field]=((.[$field]//"")+$control)' <<< "$GOOD")"
@@ -95,6 +108,36 @@ if grep -q '/dev/' "$TARGET/etc/fstab"; then exit 1; fi
 grep -q 'subvol=@snapshots' "$TARGET/etc/fstab"
 [[ $(stat -c %a "$TARGET/etc/fstab") == 644 ]]
 pass 'UUID fstab includes every subvolume and EFI'
+(
+    FILESYSTEM=ext4
+    TARGET=$TEST_DIR/ext4-target
+    ROOT=/dev/fixture2 EFI=/dev/fixture1
+    operation_log=$TEST_DIR/ext4-operations
+    mkdir -p "$TARGET/etc"
+    check_disk() { printf 'guard\n' >> "$operation_log"; }
+    run() { printf '%s\n' "$*" >> "$operation_log"; }
+    mountpoint() { return 0; }
+    lsblk() { printf '253:2\n'; }
+    findmnt() {
+        case "${*: -1}" in
+            FSTYPE) if [[ $* == *'/boot/efi'* ]]; then printf 'vfat\n'; else printf 'ext4\n'; fi;;
+            FSROOT) printf '/\n';;
+            MAJ:MIN) printf '253:2\n';;
+            *) return 1;;
+        esac
+    }
+    blkid() {
+        if [[ ${*: -1} == "$ROOT" ]]; then printf '11111111-2222-3333-4444-555555555555\n'; else printf 'ABCD-1234\n'; fi
+    }
+    create_filesystems
+    write_fstab
+    [[ $(wc -l < "$TARGET/etc/fstab") -eq 2 ]]
+    grep -qx 'UUID=11111111-2222-3333-4444-555555555555 / ext4 defaults,noatime 0 1' "$TARGET/etc/fstab"
+    grep -qx 'mkfs.ext4 -F /dev/fixture2' "$operation_log"
+    [[ $(sed -n '1p' "$operation_log") == guard && $(sed -n '3p' "$operation_log") == guard ]]
+    if grep -Eq 'btrfs|subvol|mkfs.ext4.* -L' "$operation_log"; then exit 1; fi
+)
+pass 'ext4 formatting uses guards, UUID fstab and no Btrfs operations with mocked devices only'
 enable_service() { [[ $1 == dhcpcd ]]; }
 mkdir -p "$TARGET/usr/libexec/dhcpcd-hooks"
 printf '# Resolver hook fixture\n' > "$TARGET/usr/libexec/dhcpcd-hooks/20-resolv.conf"
@@ -474,7 +517,7 @@ for scenario in missing ready guard-failure update-failure install-failure; do
                 if [[ $scenario == update-failure ]]; then return 37; fi
             else
                 if [[ $scenario == install-failure ]]; then return 38; fi
-                [[ $* == "-Sy jq gptfdisk parted dosfstools btrfs-progs psmisc" ]]
+                [[ $* == "-Sy jq gptfdisk parted dosfstools btrfs-progs e2fsprogs psmisc" ]]
                 installed=1
             fi
         }
@@ -487,7 +530,7 @@ for scenario in missing ready guard-failure update-failure install-failure; do
     case "$scenario" in
         missing)
             [[ $code == 0 ]]
-            [[ $(cat "$TEST_DIR/prepare-$scenario.log") == $'guard\nlock\n-Sy xbps\n-Sy jq gptfdisk parted dosfstools btrfs-progs psmisc\nchecked' ]];;
+            [[ $(cat "$TEST_DIR/prepare-$scenario.log") == $'guard\nlock\n-Sy xbps\n-Sy jq gptfdisk parted dosfstools btrfs-progs e2fsprogs psmisc\nchecked' ]];;
         ready)
             [[ $code == 0 ]]
             [[ $(cat "$TEST_DIR/prepare-$scenario.log") == $'guard\nlock\nchecked' ]];;
@@ -519,6 +562,7 @@ for scenario in partition_disk:2:0 partition_disk:3:1 create_filesystems:1:0 cre
         source "$1/scripts/lib/common.sh"
         source "$1/scripts/lib/disk.sh"
         source "$1/scripts/lib/btrfs.sh"
+        source "$1/scripts/lib/filesystems.sh"
         count=0
         check_static_interface() { :; }
         run() { printf "%s\n" "$*" >> "$operation_log"; }

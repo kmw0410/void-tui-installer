@@ -3,8 +3,9 @@ software_catalog() {
     jq "$@" "$SCRIPT_DIR/catalog.json"
 }
 select_packages() {
-    software_catalog -e '.utilities|type=="array"' >/dev/null || fail 'The software catalog is unavailable.'
+    software_catalog -e --arg fs "$FILESYSTEM" '(.base|type=="array" and length>0) and (.filesystems[$fs]|type=="array" and length>0)' >/dev/null || fail 'The software catalog is unavailable.'
     local package
+    mapfile -t PACKAGES < <(software_catalog -r --arg fs "$FILESYSTEM" '.base[], .filesystems[$fs][]')
     local -a additions=()
     mapfile -t additions < <(software_catalog -r '.common[]')
     if [[ $DESKTOP != none ]]; then
@@ -53,6 +54,8 @@ configure_software() {
     persist_mirror
     enable_service bluetoothd
     enable_service tlp
+    enable_service dbus
+    enable_service cronie
     if [[ $DESKTOP != none ]]; then
         enable_service dbus
         enable_service sddm

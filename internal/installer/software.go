@@ -8,11 +8,13 @@ import (
 )
 
 type softwareCatalog struct {
-	Common    []string            `json:"common"`
-	Utilities []string            `json:"utilities"`
-	Graphical []string            `json:"graphical"`
-	Fcitx     []string            `json:"fcitx"`
-	Desktops  map[string][]string `json:"desktops"`
+	Base        []string            `json:"base"`
+	Filesystems map[string][]string `json:"filesystems"`
+	Common      []string            `json:"common"`
+	Utilities   []string            `json:"utilities"`
+	Graphical   []string            `json:"graphical"`
+	Fcitx       []string            `json:"fcitx"`
+	Desktops    map[string][]string `json:"desktops"`
 }
 
 var catalog = func() softwareCatalog {
@@ -53,7 +55,9 @@ func (c Config) ValidateSoftware() error {
 }
 
 func (c Config) SoftwarePackages() []string {
-	packages := slices.Clone(catalog.Common)
+	packages := slices.Clone(catalog.Base)
+	packages = append(packages, catalog.Filesystems[c.FilesystemName()]...)
+	packages = append(packages, catalog.Common...)
 	if c.Desktop != "" && c.Desktop != "none" {
 		packages = append(packages, catalog.Graphical...)
 		packages = append(packages, catalog.Desktops[c.Desktop]...)

@@ -634,6 +634,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case disks:
 			switch key {
+			case "left", "right", "space":
+				if !m.diskInspection {
+					fs := m.config.FilesystemName()
+					if key == "left" || (key == "space" && fs == "ext4") {
+						m.config.Filesystem = "btrfs"
+					} else {
+						m.config.Filesystem = "ext4"
+					}
+					m.err = ""
+				}
 			case "up", "shift+tab":
 				m.selectedDisk = max(0, m.selectedDisk-1)
 			case "down", "tab":

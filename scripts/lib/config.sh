@@ -10,9 +10,11 @@ valid_ipv4() {
     done
 }
 validate_config() {
-    jq -e 'type=="object" and ((keys-["version","disk","identity","username","hostname","network","interface","address","gateway","dns","confirmation","desktop","graphics","utilities","mirror","timezone"])|length)==0 and .version==1 and ([.disk,.identity,.username,.hostname,.network,.interface,.address,.gateway,.dns,.confirmation]|all(type=="string")) and (.timezone==null or (.timezone|type=="string")) and (.mirror==null or (.mirror|type=="string")) and (.desktop==null or (.desktop|type=="string")) and (.graphics==null or (.graphics|type=="string")) and (.utilities==null or (.utilities|type=="array" and all(.[];type=="string") and (unique|length)==length))' <<< "$CONFIG" >/dev/null || fail 'Invalid configuration schema.'
+    jq -e 'type=="object" and ((keys-["version","disk","identity","username","hostname","network","interface","address","gateway","dns","confirmation","desktop","graphics","utilities","mirror","timezone","filesystem"])|length)==0 and .version==1 and ([.disk,.identity,.username,.hostname,.network,.interface,.address,.gateway,.dns,.confirmation]|all(type=="string")) and (.filesystem==null or (.filesystem|type=="string")) and (.timezone==null or (.timezone|type=="string")) and (.mirror==null or (.mirror|type=="string")) and (.desktop==null or (.desktop|type=="string")) and (.graphics==null or (.graphics|type=="string")) and (.utilities==null or (.utilities|type=="array" and all(.[];type=="string") and (unique|length)==length))' <<< "$CONFIG" >/dev/null || fail 'Invalid configuration schema.'
     # Reject controls in original JSON before Bash strips newlines or NUL bytes.
     jq -e '[.. | strings | explode | all(. >= 32 and . != 127)] | all' <<< "$CONFIG" >/dev/null || fail 'Configuration strings must not contain control characters.'
+    FILESYSTEM=$(jq -r '.filesystem | if .==null or .=="" then "btrfs" else . end' <<< "$CONFIG")
+    [[ $FILESYSTEM == btrfs || $FILESYSTEM == ext4 ]] || fail 'Invalid root filesystem.'
     # Validate the JSON value before command substitution can strip newlines.
     jq -e --slurpfile zones "$SCRIPT_DIR/timezones.json" '(.timezone | if .==null or .=="" then "UTC" else . end) as $zone | $zones[0] | index($zone)!=null' <<< "$CONFIG" >/dev/null || fail 'Invalid timezone selection.'
     # Used by system configuration and final verification.

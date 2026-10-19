@@ -306,7 +306,7 @@ func startEngine(parent context.Context, c Config, password, script string, clea
 			}
 		}
 		var wg sync.WaitGroup
-		var p protocol
+		p := protocol{allowSnapshotSkip: c.FilesystemName() == "ext4"}
 		var protocolErr error
 		wg.Add(2)
 		go func() {
