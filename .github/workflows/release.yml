@@ -16,6 +16,8 @@ permissions:
 
 env:
   TZ: Asia/Seoul
+  GOTOOLCHAIN: local
+  GOVULNCHECK_VERSION: v1.9.0
 
 defaults:
   run:
@@ -32,6 +34,8 @@ jobs:
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      go-version: ${{ steps.go.outputs.go-version }}
     steps:
       - name: Require main for manual releases
         if: github.event_name == 'workflow_dispatch'
@@ -43,9 +47,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y build-essential jq shellcheck
       - name: Set up Go
+        id: go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: '1.26.x'
+          check-latest: true
           cache: true
           cache-dependency-path: go.sum
       - name: Check runner tools
@@ -58,6 +64,8 @@ jobs:
         run: make check
       - name: Run race detector
         run: go test -race ./...
+      - name: Check known Go vulnerabilities
+        run: go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" -test ./...
 
   release:
     needs: test
@@ -81,7 +89,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ needs.test.outputs.go-version }}
           cache: true
           cache-dependency-path: go.sum
       - name: Prepare version and release notes
@@ -94,6 +102,7 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           make build VERSION="$RELEASE_VERSION"
+          go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" -mode=binary dist/void-installer-tui
           test "$(dist/void-installer-tui --version)" = "Void TUI Installer $RELEASE_VERSION"
           file dist/void-installer-tui | grep -F 'statically linked'
           mkdir -p dist/release
