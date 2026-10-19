@@ -1,5 +1,9 @@
 # Research and implementation decisions
 
+## Searchable repository packages (2026-10-19)
+
+The [official xbps-query manual](https://man.voidlinux.org/xbps-query.1) documents `--repository`, `-i` (ignore configured repositories), wildcard `-s` search over pkgver/short_desc, `pkgname` and the memory-only `-M` option. Repository browsing uses the existing XBPS toolchain and Live signing keys in a private metadata root. Additional selection accepts exact package names; installed-state markers in search output do not affect target selection. A read-only `xbps-query -M -i --repository=https://repo-default.voidlinux.org/current -s '*'` query returned 14,823 records, including `[-]` and `[*]` state markers; both formats were parsed by the Go snapshot test. This query did not install packages or update the host package database. Runtime helper execution on an official Live ISO remains a separate integration check.
+
 ## Timezones and niri usability (0.4.0-dev)
 
 The searchable timezone allowlist is bundled from the public-domain [IANA zone.tab](https://github.com/eggert/tz/blob/main/zone.tab), retrieved 2026-10-15, plus UTC. The installed tzdata file is linked from `/etc/localtime`, following [Void date/time configuration](https://docs.voidlinux.org/config/date-time.html). No time synchronization service is added.

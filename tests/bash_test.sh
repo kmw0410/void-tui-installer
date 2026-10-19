@@ -363,7 +363,7 @@ done
 account_dir=$TEST_DIR/account-regression
 mkdir -p "$account_dir/etc/default"
 printf '#en_US.UTF-8 UTF-8\n' > "$account_dir/etc/default/libc-locales"
-printf 'root:x:1:0:99999:7:::\nalice:!:1:0:99999:7:::\n' > "$account_dir/etc/shadow"
+printf 'root:!:1:0:99999:7:::\nalice:!:1:0:99999:7:::\n' > "$account_dir/etc/shadow"
 code=0
 bash -Eeuo pipefail -c '
     source "$1/scripts/install.sh"
@@ -535,4 +535,125 @@ for scenario in partition_disk:2:0 partition_disk:3:1 create_filesystems:1:0 cre
     [[ $(wc -l < "$operation_log") -eq $expected ]]
 done
 pass 'changed disk state blocks each subsequent destructive command using mocks only'
+for selection in vim missing vim-9.1_1; do
+    package_log=$TEST_DIR/package-validation.log
+    : > "$package_log"
+    code=0
+    bash -Eeuo pipefail -c '
+        source "$1/scripts/lib/common.sh"
+        source "$1/scripts/lib/preflight.sh"
+        UTILITIES=("$2")
+        package_log=$3
+        REPOSITORY=https://mirror.example/current
+        REPOSITORIES=(-R "$REPOSITORY")
+        QUERY_REPOSITORIES=(--repository="$REPOSITORY")
+        PACKAGES=(vim)
+        mkdir() { :; }
+        cp() { :; }
+        preflight_command() { :; }
+        timeout() {
+            [[ $* == *"-i --repository=https://mirror.example/current -p pkgname"* ]] || return 1
+            case "${*: -1}" in
+                vim|vim-9.1_1) printf "vim\n";;
+                *) return 1;;
+            esac
+        }
+        preflight_transaction() { printf "transaction\n" >> "$package_log"; }
+        preflight_repository /fixture
+    ' _ "$ROOT_DIR" "$selection" "$package_log" >/dev/null 2>&1 || code=$?
+    if [[ $selection == vim ]]; then
+        (( code == 0 ))
+        grep -qx transaction "$package_log"
+    else
+        (( code != 0 ))
+        [[ ! -s $package_log ]]
+    fi
+done
+pass 'selected packages require exact names in the chosen main repository before transaction resolution'
+(
+    # Private metadata and repository calls are replaced; no XBPS operation runs.
+    source "$ROOT_DIR/scripts/lib/preflight.sh"
+    CHECK_DIR=$TEST_DIR/package-list
+    package_log=$TEST_DIR/package-list.log
+    preflight_environment() { :; }
+    mktemp() { command mkdir "$CHECK_DIR"; printf '%s\n' "$CHECK_DIR"; }
+    cp() { [[ $1 == -a && $2 == /var/db/xbps/keys/. && $3 == "$CHECK_DIR/var/db/xbps/keys/" ]]; }
+    timeout() {
+        if [[ $1 == 180 ]]; then
+            [[ $* == *"xbps-install -S -r $CHECK_DIR -i -R https://mirror.example/void/current"* ]]
+            printf 'sync\n' >> "$package_log"
+            printf 'Fixture synchronization diagnostics\n'
+        else
+            [[ $* == *"xbps-query -r $CHECK_DIR -i --repository=https://mirror.example/void/current -s *"* ]]
+            printf 'query\n' >> "$package_log"
+            printf '[-] vim-9.1_1 Text editor\n'
+        fi
+    }
+    list_repository_packages https://mirror.example/void > "$TEST_DIR/package-list.out" 2> "$TEST_DIR/package-list.err"
+    grep -qx '\[-\] vim-9.1_1 Text editor' "$TEST_DIR/package-list.out"
+    [[ $(wc -l < "$TEST_DIR/package-list.out") -eq 1 ]]
+    grep -qx 'Fixture synchronization diagnostics' "$TEST_DIR/package-list.err"
+    [[ $(wc -l < "$package_log") -eq 2 ]]
+)
+pass 'package listing isolates metadata, ignores configured repositories and separates diagnostics from records'
+for scenario in passed conflict; do
+    code=0
+    bash -Eeuo pipefail -c '
+        source "$1/scripts/install.sh"
+        scenario=$2
+        preflight_environment() { :; }
+        acquire_installer_lock() { :; }
+        check_static_interface() { :; }
+        preflight_repository() {
+            if [[ $scenario == conflict ]]; then printf "Fixture dependency conflict\n" >&2; return 23; fi
+            PREFLIGHT_REQUIRED_BYTES=4000000000
+        }
+        check_graphics() { :; }
+        check_disk() { :; }
+        lsblk() { printf "32000000000\n"; }
+        check_installation_plan
+    ' _ "$ROOT_DIR" "$scenario" <<< "$GOOD" > "$TEST_DIR/review-$scenario.out" 2> "$TEST_DIR/review-$scenario.err" || code=$?
+    if [[ $scenario == passed ]]; then
+        (( code == 0 ))
+        jq -se '.[-1].name=="capacity" and .[-1].required_bytes==4000000000 and .[-1].disk_bytes==32000000000 and any(.[];.name=="graphics" and .status=="skipped")' "$TEST_DIR/review-$scenario.out" >/dev/null
+    else
+        (( code == 23 ))
+        jq -se '.[-1].name=="repository" and .[-1].status=="running" and all(.[];.name!="disk")' "$TEST_DIR/review-$scenario.out" >/dev/null
+        grep -qx 'Fixture dependency conflict' "$TEST_DIR/review-$scenario.err"
+    fi
+done
+pass 'review checks use public config without FD 3 and retain partial results on conflicts'
+account_dir=$TEST_DIR/locked-root
+mkdir -p "$account_dir/etc/default"
+printf '#en_US.UTF-8 UTF-8\n' > "$account_dir/etc/default/libc-locales"
+bash -Eeuo pipefail -c '
+    source "$1/scripts/install.sh"
+    TARGET=$2 USERNAME=alice HOSTNAME=voidbox PASSWORD=FixtureSecret123
+    write_fstab() { :; }
+    configure_timezone() { :; }
+    chrun() {
+        if [[ $1 == usermod ]]; then
+            [[ $* == "usermod -L root" ]]
+            sed -i "s/^root:[^:]*:/root:!:/" "$TARGET/etc/shadow"
+        fi
+    }
+    chroot() {
+        if [[ $2 == chpasswd ]]; then
+            command cat > "$TARGET/password-input"
+            printf "root:x:1:0:99999:7:::\nalice:\$6\$%080d:1:0:99999:7:::\n" 0 > "$TARGET/etc/shadow"
+            return
+        fi
+        local -a args=("${@:2}")
+        args[${#args[@]}-1]="$TARGET/etc/shadow"
+        "${args[@]}"
+    }
+    configure_system
+' _ "$ROOT_DIR" "$account_dir" > "$account_dir/output" 2>&1
+[[ $(wc -l < "$account_dir/password-input") -eq 1 ]]
+grep -q '^alice:' "$account_dir/password-input"
+if grep -q '^root:' "$account_dir/password-input"; then exit 1; fi
+grep -q '^root:!:' "$account_dir/etc/shadow"
+grep -qx '%wheel ALL=(ALL:ALL) ALL' "$account_dir/etc/sudoers.d/10-wheel"
+if grep -q 'FixtureSecret123' "$account_dir/output"; then exit 1; fi
+pass 'only the user receives a password while root is locked and wheel sudo requires authentication'
 printf '1..%s\n' "$count"

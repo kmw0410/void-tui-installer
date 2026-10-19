@@ -80,11 +80,27 @@ preflight_repository() {
     cp -a /var/db/xbps/keys/. "$dir/var/db/xbps/keys/"
     # A private XBPS root keeps live-session package databases unchanged.
     preflight_command 'Repository index synchronization' timeout 180 env XBPS_ARCH=x86_64 xbps-install -S -r "$dir" "${REPOSITORIES[@]}"
+    local selected resolved
+    for selected in "${UTILITIES[@]}"; do
+        resolved=$(timeout 30 env XBPS_ARCH=x86_64 xbps-query -r "$dir" -i --repository="$REPOSITORY" -p pkgname "$selected") || fail 'Selected package is unavailable in the main repository.'
+        [[ $resolved == "$selected" ]] || fail 'Selected package must be an exact repository package name.'
+    done
     preflight_transaction "$dir"
     local package
     for package in "${PACKAGES[@]}"; do
         preflight_command "Repository package lookup: $package" timeout 30 env XBPS_ARCH=x86_64 xbps-query -r "$dir" -R "${QUERY_REPOSITORIES[@]}" -p pkgver "$package"
     done
+}
+
+list_repository_packages() {
+    preflight_environment
+    configure_mirror_root "$1"
+    CHECK_DIR=$(mktemp -d /tmp/void-installer-packages.XXXXXXXX)
+    trap 'rm -rf -- "$CHECK_DIR"' EXIT
+    mkdir -p "$CHECK_DIR/var/db/xbps/keys"
+    cp -a /var/db/xbps/keys/. "$CHECK_DIR/var/db/xbps/keys/"
+    preflight_command 'Package list synchronization' timeout 180 env XBPS_ARCH=x86_64 xbps-install -S -r "$CHECK_DIR" -i -R "$REPOSITORY" </dev/null
+    timeout 60 env XBPS_ARCH=x86_64 xbps-query -r "$CHECK_DIR" -i --repository="$REPOSITORY" -s '*' </dev/null
 }
 preflight_transaction() {
     local dir=$1 status=0
@@ -132,4 +148,33 @@ preflight_install() {
 
 preparation_progress() {
     printf "VOID_PREP %s %s\n" "$1" "$2" >&2
+}
+
+check_result() {
+    jq -cn --arg name "$1" --arg status "$2" '{name:$name,status:$status}'
+}
+check_installation_plan() {
+    preflight_environment
+    acquire_installer_lock
+    read_public_config
+    select_packages
+    WORK=$(mktemp -d /tmp/void-installer-review.XXXXXXXX)
+    trap 'rm -rf -- "$WORK"' EXIT
+    check_result environment passed
+    check_result network running
+    check_static_interface
+    check_result network passed
+    check_result repository running
+    preflight_repository "$WORK/repo"
+    check_result repository passed
+    check_result graphics running
+    check_graphics
+    if [[ $GRAPHICS == nvidia ]]; then check_result graphics passed; else check_result graphics skipped; fi
+    check_result disk running
+    check_disk
+    check_result disk passed
+    local size
+    size=$(lsblk -bdnr -o SIZE -- "$DISK")
+    [[ $size =~ ^[0-9]+$ ]] || fail 'Cannot determine target capacity.'
+    jq -cn --argjson required "$PREFLIGHT_REQUIRED_BYTES" --argjson size "$size" '{name:"capacity",status:"passed",required_bytes:$required,disk_bytes:$size}'
 }

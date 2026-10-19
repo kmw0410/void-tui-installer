@@ -14,7 +14,7 @@ An installer for the official Void Linux Live ISO, built with a Go/Bubble Tea v2
   <li><p>5. Timezone</p><img src="img/timezone.png" alt="Timezone search with Asia/Seoul selected" width="100%"></li>
   <li><p>6. Network</p><img src="img/network.png" alt="Network configuration with DHCP selected" width="100%"></li>
   <li><p>7. Desktop</p><img src="img/desktop.png" alt="Console, KDE Plasma and Niri choices with no NVIDIA GPU detected" width="100%"></li>
-  <li><p>8. Utilities</p><img src="img/utilities.png" alt="Optional utility package checkboxes and selection description" width="100%"></li>
+  <li><p>8. Packages</p><img src="img/utilities.png" alt="Optional package selection screen" width="100%"></li>
   <li><p>9. Review and erase confirmation</p><img src="img/review-installation.png" alt="Centered review dialog with installation summary and disk erase confirmation" width="100%"></li>
 </ul>
 </details>
@@ -89,11 +89,19 @@ lsblk -d -o NAME,SIZE,TYPE,SERIAL,WWN
 
 ## Installation flow
 
-Follow Welcome → Mirror → Disk → Account → Timezone → Network → Desktop → Utilities → Review. In Timezone, type a city or region, navigate with the arrow keys or PageUp/PageDown, and press Enter to select a timezone such as `Asia/Seoul`. The default is UTC; no NTP service is added.
+Follow Welcome → Mirror → Disk → Account → Timezone → Network → Desktop → Packages → Review. In Timezone, type a city or region, navigate with the arrow keys or PageUp/PageDown, and press Enter to select a timezone such as `Asia/Seoul`. The default is UTC; no NTP service is added.
 
 Use arrows or Tab/Shift+Tab to move, Space to select or toggle, Enter to confirm, and Esc to go back. The final Review appears as a rectangular dialog centered on a black background. PageUp/PageDown scrolls the summary while the erase-confirmation field and Back/Install buttons stay visible. Enter in the field focuses Install; press Enter again on that button to start installation.
 
-Welcome shows each preparation step as running, completed, skipped or failed. Settings screens keep Continue in the same bottom position; Tab focuses it from a selection list, while Enter confirms the current selection and continues. In account and static-network forms, Enter moves through inputs to Continue before submitting. Invalid input is explained below its field. Disk selection separates the list from model, capacity, serial/WWN and blocker details; D on a failed Welcome opens inspection only. Desktop and Utilities keep descriptions below the choices. Review puts the selected desktop, driver and utility count above package/service/storage details. Installation shows the latest few sanitized log lines, with F2 opening the full log.
+Review runs non-destructive checks of the Live environment, network adapter, mirror/dependencies, NVIDIA support, disk safety and required capacity. The result stays visible above the summary; scroll for individual results and capacity details. Install remains disabled until checks pass for the current settings and the exact erase phrase is entered. Ctrl+R retries failed checks. The engine repeats safety checks before erasure.
+
+### Save and load settings
+
+Press F5 in Review to save settings, or F9 before installation to load them. A dialog lets you choose the JSON file path; the default is `~/void-installer-settings.json`. Saved files have mode 0600 and contain public choices only: passwords and erase confirmation are excluded. Loading clears password inputs and confirmation, discovers disks again, and returns to Mirror so the mirror and target can be reviewed. A changed, missing or unsafe disk must be selected again. Keep the file on persistent storage if you want it after the Live session ends. Saving replaces valid installer settings files; unrelated files and symbolic links are rejected.
+
+The installer sets a password only for the selected user, adds that user to `wheel`, and enables password-protected sudo. The root password is locked; use sudo for administrative work.
+
+Welcome shows each preparation step as running, completed, skipped or failed. Settings screens keep Continue in the same bottom position; Tab focuses it from a selection list, while Enter confirms the current selection and continues. In account and static-network forms, Enter moves through inputs to Continue before submitting. Invalid input is explained below its field. Disk selection separates the list from model, capacity, serial/WWN and blocker details; D on a failed Welcome opens inspection only. Desktop and Packages keep descriptions below the choices. Review puts the selected desktop, driver and additional package count above package/service/storage details. Installation shows the latest few sanitized log lines, with F2 opening the full log.
 
 ## Installation profiles
 
@@ -101,17 +109,19 @@ Choose console-only (CLI), KDE Plasma or Niri. KDE Plasma installs `plasma-deskt
 
 Every profile, including CLI, installs `bluez` and `tlp` and enables the `bluetoothd` and `tlp` runit services.
 
-Both desktop profiles include `pipewire`, `wireplumber`, `libjack-pipewire` and `alsa-pipewire` by default. Firefox and Kitty are not installed automatically; select them in Utilities.
+Both desktop profiles include `pipewire`, `wireplumber`, `libjack-pipewire` and `alsa-pipewire` by default. Firefox and Kitty are not installed automatically; select them in Packages.
 
-## Utilities
+## Package installation
 
-Select utilities through individual checkboxes labeled with their actual package names: `wget`, `curl`, `vim`, `nano`, `git`, `openssh`, `firefox`, `kitty`, `bash-completion`, `rsync`, `zip`, `unzip`, `btop`, `ripgrep`, `fcitx5`, `fcitx5-hangul`, `wl-clipboard`, `jq`, `pciutils` and `usbutils`.
+Packages loads the x86_64 glibc main repository (`/current`) from the selected Void mirror. Type to filter package names and descriptions, use arrows or PageUp/PageDown to move, and press Space to toggle a checkbox. Names and versions appear in the list; the description stays below it. Selections remain checked when the filter changes. Tab/Shift+Tab moves through Search → Show selected only → Package list → Continue. Space on Show selected only filters to checked packages, and the search still applies. Unchecking an item in this view hides it immediately. Press Enter from Search, the list or Continue to open Review. Ctrl+R reloads the list after a failure. You can select up to 256 additional packages; changing the mirror clears the old list and selections.
+
+The list is checked through XBPS using the Live environment's repository signing keys and private temporary metadata. Package availability, dependency conflicts and target capacity are checked again before erasure. Nonfree and multilib packages are outside this list; the separate NVIDIA option still handles its required nonfree packages.
 
 Selecting `fcitx5` also installs `fcitx5-qt`, `fcitx5-qt5`, `fcitx5-qt6`, `fcitx5-gtk`, `fcitx5-gtk+3`, `fcitx5-gtk4` and `fcitx5-configtool`. Selecting only `fcitx5-hangul` installs the same bundle and creates an English/Hangul input profile. Installing `openssh` does not automatically enable the `sshd` service.
 
 ## Default Niri key bindings
 
-Niri provides the following launch shortcuts. Mod means the Super key, usually the Windows key. Firefox and Kitty shortcuts are added only when their packages are selected in Utilities.
+Niri provides the following launch shortcuts. Mod means the Super key, usually the Windows key. Firefox and Kitty shortcuts are added only when their packages are selected in Packages.
 
 - `Mod` + `B`: launch Firefox
 - `Mod` + `Enter`: launch Kitty

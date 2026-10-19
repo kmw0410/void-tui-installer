@@ -9,6 +9,14 @@ for module in common mirror config session software disk preflight btrfs bootstr
     source "$SCRIPT_DIR/lib/$module.sh"
 done
 main() {
+    if [[ ${1:-} == --check-install && $# == 1 ]]; then
+        check_installation_plan
+        return
+    fi
+    if [[ ${1:-} == --list-packages && $# == 2 ]]; then
+        list_repository_packages "$2"
+        return
+    fi
     if [[ ${1:-} == --prepare-live && $# == 1 ]]; then
         prepare_live_environment
         return
@@ -25,7 +33,7 @@ main() {
         preflight_repository "$CHECK_DIR"
         return
     fi
-    (( $# == 0 )) || fail 'Usage: install.sh [--prepare-live|--check-local|--check [MIRROR]]'
+    (( $# == 0 )) || fail 'Usage: install.sh [--prepare-live|--check-local|--check [MIRROR]|--list-packages MIRROR|--check-install]'
     command -v jq >/dev/null || fail 'Required command is missing: jq'
     trap on_exit EXIT
     trap on_signal TERM INT HUP

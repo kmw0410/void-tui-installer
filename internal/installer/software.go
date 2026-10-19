@@ -40,9 +40,12 @@ func (c Config) ValidateSoftware() error {
 		return fmt.Errorf("Invalid graphics selection")
 	}
 	seen := map[string]bool{}
+	if len(c.Utilities) > MaxExtraPackages {
+		return fmt.Errorf("Select at most %d additional packages", MaxExtraPackages)
+	}
 	for _, p := range c.Utilities {
-		if !slices.Contains(catalog.Utilities, p) || seen[p] {
-			return fmt.Errorf("Invalid or duplicate utility package")
+		if !packageNamePattern.MatchString(p) || seen[p] {
+			return fmt.Errorf("Invalid or duplicate package name")
 		}
 		seen[p] = true
 	}

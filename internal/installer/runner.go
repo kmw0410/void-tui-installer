@@ -101,6 +101,14 @@ func preflightScript(parent context.Context, script string, args ...string) erro
 	return preflightScriptProgress(parent, script, nil, args...)
 }
 func preflightScriptProgress(parent context.Context, script string, report func(string, string), args ...string) error {
+	return preflightRun(parent, script, report, nil, args...)
+}
+
+func preflightRun(parent context.Context, script string, report func(string, string), output io.Writer, args ...string) error {
+	return preflightRunInput(parent, script, report, output, nil, args...)
+}
+
+func preflightRunInput(parent context.Context, script string, report func(string, string), output io.Writer, input []byte, args ...string) error {
 	log, err := os.CreateTemp("", "void-installer-preflight-*.log")
 	if err != nil {
 		return fmt.Errorf("Cannot create a private environment-check log")
@@ -113,8 +121,12 @@ func preflightScriptProgress(parent context.Context, script string, report func(
 	}
 	cmd := exec.CommandContext(ctx, "/bin/bash", append([]string{script}, args...)...)
 	cmd.Env = safeEnv()
+	cmd.Stdin = bytes.NewReader(input)
 	writer := &preparationWriter{log: log, report: report}
 	cmd.Stdout = writer
+	if output != nil {
+		cmd.Stdout = output
+	}
 	cmd.Stderr = writer
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
@@ -177,6 +189,15 @@ func Start(parent context.Context, c Config, password string) (*Session, error) 
 	}
 	if err := validation.Password(password); err != nil {
 		return nil, err
+	}
+	if len(c.Utilities) > 0 {
+		packages, err := RepositoryPackages(parent, c.Mirror)
+		if err != nil {
+			return nil, err
+		}
+		if err := ValidateRepositorySelection(c.Utilities, packages); err != nil {
+			return nil, err
+		}
 	}
 	disks, err := DiscoverContext(parent)
 	if err != nil {

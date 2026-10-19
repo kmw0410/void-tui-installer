@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var (
@@ -26,6 +27,8 @@ func (m *model) View() tea.View {
 		if m.screen == installing {
 			content = "VOID LINUX INSTALLER\n\nInstallation is still running.\nResize to at least 80 x 24.\nCtrl+C: request cancellation"
 		}
+	} else if m.settingsMode != "" {
+		content = m.settingsDialog()
 	} else if m.screen == review {
 		content = m.reviewDialog()
 	} else {
@@ -58,7 +61,11 @@ func (m *model) View() tea.View {
 		}
 		body = lipgloss.NewStyle().Width(contentWidth).Height(bodyHeight).MaxHeight(bodyHeight).PaddingLeft(2).Render(body)
 		line := muted.Render(strings.Repeat("─", m.width))
-		footer := lipgloss.NewStyle().Width(m.width-4).Padding(0, 2).Render(m.help())
+		help := m.help()
+		if m.settingsNotice != "" {
+			help = truncate(m.settingsNotice, m.width-4)
+		}
+		footer := lipgloss.NewStyle().Width(m.width-4).Padding(0, 2).Render(help)
 		content = header + "\n" + line + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, side, body) + "\n" + footer
 	}
 	background := lipgloss.Color("#0A0A0A")
@@ -70,7 +77,7 @@ func (m *model) View() tea.View {
 	return view
 }
 func (m *model) navigation() string {
-	names := []string{"Welcome", "Mirror", "Disk", "Account", "Timezone", "Network", "Desktop", "Utilities", "Review", "Install", "Result"}
+	names := []string{"Welcome", "Mirror", "Disk", "Account", "Timezone", "Network", "Desktop", "Packages", "Review", "Install", "Result"}
 	var lines []string
 	for i, name := range names {
 		line := fmt.Sprintf("%02d %s", i+1, name)
@@ -200,7 +207,7 @@ func (m *model) body(width, height int) string {
 			}
 			s += prefix + mark + name + "\n"
 		}
-		description := "Firefox and Kitty are optional utilities. Both desktops include SDDM, PipeWire and CJK fonts."
+		description := "Firefox and Kitty are optional packages. Both desktops include SDDM, PipeWire and CJK fonts."
 		if len(m.gpus) == 0 {
 			return selectionPanel(s+"\nNo NVIDIA display controller detected.", description, width, height)
 		}
@@ -219,25 +226,48 @@ func (m *model) body(width, height int) string {
 		}
 		return selectionPanel(s, description, width, height)
 	case utilities:
-		s := title("Optional utility packages")
-		packages := installer.UtilityPackages()
-		count := max(1, height-7)
+		mark := "[ ]"
+		if m.selectedOnly {
+			mark = "[V]"
+		}
+		selectedToggle := "  " + mark + " Show selected only"
+		if m.packageFocus == 1 {
+			selectedToggle = accent.Render(">" + selectedToggle[1:])
+		}
+		s := title("Additional packages") + "Filter: " + m.packageFilter.View() + "\n" + selectedToggle + "\n\n"
+		if m.packagesLoading {
+			return s + "Fetching the selected mirror's main package list " + m.spinner()
+		}
+		if m.packagesError != "" {
+			return s + "Package list could not be loaded.\nCtrl+R: retry\n\n" + truncate(m.packagesError, max(1, width-2))
+		}
+		packages := m.filteredPackages()
+		count := max(1, height-11)
 		start := max(0, m.selectedUtility-count+1)
 		for i := start; i < min(len(packages), start+count); i++ {
 			mark := "[ ]"
 			for _, p := range m.config.Utilities {
-				if p == packages[i] {
+				if p == packages[i].Name {
 					mark = "[V]"
 					break
 				}
 			}
-			line := "  " + mark + " " + packages[i]
-			if i == m.selectedUtility {
-				line = accent.Render("> " + mark + " " + packages[i])
+			line := truncate("  "+mark+" "+packages[i].Name+"  "+packages[i].Version, width-1)
+			if i == m.selectedUtility && m.packageFocus != 1 && m.packageFocus != 3 {
+				line = accent.Render(">" + line[1:])
 			}
 			s += line + "\n"
 		}
-		hint := fmt.Sprintf("%d selected. %s", len(m.config.Utilities), utilityDescription(packages[m.selectedUtility]))
+		hint := fmt.Sprintf("%d selected. %d matching / %d available.", len(m.config.Utilities), len(packages), len(m.packages))
+		if len(packages) == 0 {
+			s += "No matching packages. Change the filter.\n"
+		} else {
+			p := packages[m.selectedUtility]
+			hint += " " + p.Description
+			if p.Name == "fcitx5" || p.Name == "fcitx5-hangul" || p.Name == "openssh" || p.Name == "firefox" || p.Name == "kitty" {
+				hint += " " + utilityDescription(p.Name)
+			}
+		}
 		return selectionPanel(s, hint, width, height)
 	case review:
 		return m.reviewBody(width, height)
@@ -312,12 +342,13 @@ func (m *model) reviewBody(width, height int) string {
 	if m.config.Graphics == "nvidia" {
 		driver = "Yes"
 	}
-	summary := fmt.Sprintf("Target     %s · %s\nAccount    %s@%s\nSystem     %s · %s\nDesktop    %s\nNVIDIA     %s\nUtilities  %d selected\n\nDetails\n", d.Path, d.Size, m.config.Username, m.config.Hostname, m.config.TimezoneName(), strings.ToUpper(m.config.Network), desktopName(m.config.Desktop), driver, len(m.config.Utilities))
+	summary := fmt.Sprintf("Target     %s · %s\nAccount    %s@%s\nSystem     %s · %s\nDesktop    %s\nNVIDIA     %s\nPackages   %d selected\n\n", d.Path, d.Size, m.config.Username, m.config.Hostname, m.config.TimezoneName(), strings.ToUpper(m.config.Network), desktopName(m.config.Desktop), driver, len(m.config.Utilities))
+	summary += m.checksSummary() + "\nDetails\nRoot login: locked; user has password-protected sudo.\n"
 	utilities := strings.Join(m.config.Utilities, ", ")
 	if utilities == "" {
 		utilities = "None"
 	}
-	summary += "Utilities: " + utilities + "\nPackages: " + strings.Join(m.config.SoftwarePackages(), ", ") + "\n"
+	summary += "Additional packages: " + utilities + "\nPackages: " + strings.Join(m.config.SoftwarePackages(), ", ") + "\n"
 	summary += "Disk model: " + d.Model + "\nMirror: " + m.config.Mirror + "/current\n"
 	if m.config.Network == "static" {
 		summary += m.networkSummary() + "\n"
@@ -340,6 +371,7 @@ func (m *model) reviewBody(width, height int) string {
 	if m.err != "" {
 		count = max(1, count-2)
 	}
+	count = max(1, count-1)
 	m.reviewOffset = min(m.reviewOffset, max(0, len(lines)-count))
 	visible := strings.Join(lines[m.reviewOffset:min(len(lines), m.reviewOffset+count)], "\n")
 	visible = lipgloss.NewStyle().Height(count).Render(visible)
@@ -361,9 +393,22 @@ func (m *model) reviewBody(width, height int) string {
 	if m.err != "" {
 		message = "\n" + danger.Render(truncate(m.err, width))
 	}
-	return accent.Render("Review installation") + gap + visible +
+	state := "Checks pending"
+	if m.reviewChecking {
+		state = "Checking installation plan " + m.spinner()
+	}
+	if m.reviewChecksPassed() {
+		state = "Checks passed"
+	}
+	if m.reviewCheckError != "" {
+		state = "Checks failed: Ctrl+R retries"
+	}
+	if m.settingsNotice != "" {
+		state = truncate(m.settingsNotice, width)
+	}
+	return accent.Render("Review installation") + "\n" + muted.Render(state) + gap + visible +
 		fmt.Sprintf("\n[%d-%d/%d] PgUp/PgDn", m.reviewOffset+1, min(len(lines), m.reviewOffset+count), len(lines)) + gap +
-		danger.Render("ALL DATA ON "+d.Path+" WILL BE ERASED.") + "\nType " + accent.Render("ERASE "+d.Path) + " to confirm:\n" + m.fields[8].View() + message + gap + buttons + gap + muted.Render("Tab Move   Enter Activate   Esc Back")
+		danger.Render("ALL DATA ON "+d.Path+" WILL BE ERASED.") + "\nType " + accent.Render("ERASE "+d.Path) + " to confirm:\n" + m.fields[8].View() + message + gap + buttons + gap + muted.Render("Tab Move  Ctrl+R Check  F5 Save  F9 Load  Esc Back")
 }
 
 func (m *model) reviewDialog() string {
@@ -389,7 +434,7 @@ func (m *model) help() string {
 		return "F2 Toggle logs   ↑↓ Scroll logs   Enter / Q Exit"
 	}
 	if m.screen == welcome {
-		return "Enter Continue   R Retry checks   Q Quit"
+		return "Enter Continue   R Retry checks   F9 Load settings   Q Quit"
 	}
 	if m.screen == mirror {
 		return "↑↓ / Tab Move   Enter Check and continue   Esc Back"
@@ -407,7 +452,7 @@ func (m *model) help() string {
 		return "↑↓ / Tab Move   Space Select/toggle   Enter Confirm   Esc Back"
 	}
 	if m.screen == utilities {
-		return "↑↓ / Tab Move   Space Toggle   Enter Review   Esc Back"
+		return "Type Search  ↑↓ Move  Space Toggle  Enter Next  Ctrl+R Reload  Esc Back"
 	}
 	if m.screen == review {
 		return "Tab Move   Enter Activate   PgUp/PgDn Scroll   Esc Back"
@@ -445,9 +490,5 @@ func stageLabel(s string) string {
 	return s
 }
 func truncate(s string, width int) string {
-	r := []rune(s)
-	if len(r) > width && width > 1 {
-		return string(r[:width-1]) + "…"
-	}
-	return s
+	return ansi.Truncate(s, max(0, width), "…")
 }

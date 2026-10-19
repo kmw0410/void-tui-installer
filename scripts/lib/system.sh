@@ -14,11 +14,12 @@ HOSTS
     chrun xbps-reconfigure -f glibc-locales
     chrun useradd -m -G wheel -s /bin/bash "$USERNAME"
     # chpasswd receives the secret only on stdin; suppress all diagnostics.
-    if ! printf 'root:%s\n%s:%s\n' "$PASSWORD" "$USERNAME" "$PASSWORD" | chroot "$TARGET" chpasswd -c SHA512 >/dev/null 2>&1; then
+    if ! printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$TARGET" chpasswd -c SHA512 >/dev/null 2>&1; then
         unset PASSWORD
         fail 'Account password configuration failed.'
     fi
     unset PASSWORD
+    chrun usermod -L root
     verify_account_passwords
     mkdir -p "$TARGET/etc/sudoers.d"
     printf '%%wheel ALL=(ALL:ALL) ALL\n' > "$TARGET/etc/sudoers.d/10-wheel"
@@ -39,11 +40,15 @@ verify_account_passwords() {
     # Inspect status without emitting password hashes or account database records.
     # shellcheck disable=SC2016
     chroot "$TARGET" awk -F: -v "user=$USERNAME" '
-        $1=="root" || $1==user {
-            if ($2 !~ /^\$6\$/ || length($2)<80) exit 1
-            count++
+        $1=="root" {
+            if ($2 !~ /^[!*]/) exit 1
+            roots++
         }
-        END { if (count!=2) exit 1 }
+        $1==user {
+            if ($2 !~ /^\$6\$/ || length($2)<80) exit 1
+            users++
+        }
+        END { if (roots!=1 || users!=1) exit 1 }
     ' /etc/shadow >/dev/null 2>&1 || fail 'Account password hash verification failed.'
 }
 enable_service() {

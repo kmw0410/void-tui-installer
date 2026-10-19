@@ -25,10 +25,9 @@ validate_config() {
     [[ $GRAPHICS == default || $GRAPHICS == nvidia ]] || fail 'Invalid graphics selection.'
     local utility
     UTILITIES=()
-    jq -e '(.utilities//[]) | all(.[]; test("^[a-zA-Z0-9][a-zA-Z0-9+_.-]*$") and (contains("\n")|not))' <<< "$CONFIG" >/dev/null || fail 'Invalid utility package.'
+    jq -e '(.utilities//[]) | length<=256 and all(.[]; test("^[a-zA-Z0-9][a-zA-Z0-9+_.-]{0,127}$") and (contains("\n")|not))' <<< "$CONFIG" >/dev/null || fail 'Invalid package selection.'
     while IFS= read -r utility; do
-        [[ $utility =~ ^[a-zA-Z0-9][a-zA-Z0-9+_.-]*$ ]] || fail 'Invalid utility package.'
-        jq -e --arg package "$utility" '.utilities | index($package)!=null' "$SCRIPT_DIR/catalog.json" >/dev/null || fail 'Unknown utility package.'
+        [[ $utility =~ ^[a-zA-Z0-9][a-zA-Z0-9+_.-]{0,127}$ ]] || fail 'Invalid package name.'
         UTILITIES+=("$utility")
     done < <(jq -r '.utilities//[] | .[]' <<< "$CONFIG")
     DISK=$(jq -r .disk <<< "$CONFIG")
@@ -71,11 +70,14 @@ ipv4_number() {
     IFS=. read -r a b c d <<< "$1"
     printf '%s\n' "$(( (10#$a << 24) | (10#$b << 16) | (10#$c << 8) | 10#$d ))"
 }
-read_config() {
+read_public_config() {
     CONFIG=$(head -c 65537)
     (( ${#CONFIG} <= 65536 )) || fail 'Configuration exceeds size limit.'
     validate_config
     unset CONFIG
+}
+read_config() {
+    read_public_config
     # Validate raw bytes before Bash can discard embedded NUL characters.
     # shellcheck disable=SC2034
     PASSWORD=$(head -c 130 <&3 | jq -eRrs '

@@ -15,10 +15,22 @@ import (
 
 func testModel() *model {
 	m := New().(*model)
+	for _, name := range installer.UtilityPackages() {
+		m.packages = append(m.packages, installer.Package{Name: name, Version: "1.0_1", Description: "Fixture package"})
+	}
+	m.config.Mirror = installer.DefaultMirror
+	m.packagesRoot = installer.DefaultMirror
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return m
 }
 func press(m *model, code rune) tea.Cmd { _, cmd := m.Update(tea.KeyPressMsg{Code: code}); return cmd }
+func finishReviewChecks(m *model) {
+	report := installer.CheckReport{Status: map[string]string{}, RequiredBytes: 4 << 30, DiskBytes: 32 << 30}
+	for _, name := range installer.ReviewChecks {
+		report.Status[name] = "passed"
+	}
+	m.Update(reviewCheckedMsg{id: m.reviewCheckID, key: configKey(m.config), report: report})
+}
 func textKey(m *model, s string) tea.Cmd {
 	_, cmd := m.Update(tea.KeyPressMsg{Code: []rune(s)[0], Text: s})
 	return cmd
@@ -157,6 +169,7 @@ func TestReviewRequiresExactConsentAndStartsOnce(t *testing.T) {
 	if m.screen != review {
 		t.Fatal("utilities should advance to review")
 	}
+	finishReviewChecks(m)
 	if cmd := press(m, tea.KeyEnter); cmd != nil || m.screen != review {
 		t.Fatal("empty consent must not start engine")
 	}
@@ -337,6 +350,7 @@ func TestUnscheduledCommandsDoNotBlockShutdown(t *testing.T) {
 	press(m, tea.KeyEnter)
 	press(m, tea.KeyEnter)
 	press(m, tea.KeyEnter)
+	finishReviewChecks(m)
 	m.fields[8].SetValue("ERASE /dev/vda")
 	press(m, tea.KeyEnter)
 	start := press(m, tea.KeyEnter)

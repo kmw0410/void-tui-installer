@@ -51,6 +51,11 @@ type repositoryMsg struct {
 	root string
 	err  error
 }
+type packagesMsg struct {
+	root     string
+	packages []installer.Package
+	err      error
+}
 type eventMsg struct {
 	event installer.Event
 	open  bool
@@ -81,6 +86,23 @@ type model struct {
 	selectedMirror                    int
 	selectedTimezone                  int
 	repositoryReady                   bool
+	packages                          []installer.Package
+	packagesRoot                      string
+	packagesLoading                   bool
+	packagesError                     string
+	packageFilter                     textinput.Model
+	selectedOnly                      bool
+	packageFocus                      int
+	settingsMode                      string
+	settingsPath                      textinput.Model
+	settingsBusy                      bool
+	settingsNotice                    string
+	reviewChecking                    bool
+	reviewCheckID                     int
+	reviewReport                      installer.CheckReport
+	reviewCheckError                  string
+	reviewCheckedConfig               string
+	reviewCancel                      context.CancelFunc
 	reviewOffset                      int
 	reviewFocus                       int
 	selectedDisk, selectedInterface   int
@@ -143,6 +165,14 @@ func NewWithVersion(parent context.Context, version string) *model {
 	}
 	m.fields[3].SetValue("void")
 	m.fields[9].CharLimit = 512
+	m.packageFilter = textinput.New()
+	m.packageFilter.Prompt = "> "
+	m.packageFilter.CharLimit = 128
+	m.packageFilter.SetWidth(40)
+	m.settingsPath = textinput.New()
+	m.settingsPath.Prompt = "> "
+	m.settingsPath.CharLimit = 4096
+	m.settingsPath.SetWidth(50)
 	return m
 }
 
@@ -228,6 +258,41 @@ func awaitDone(s *installer.Session) tea.Cmd { return func() tea.Msg { return do
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case reviewCheckedMsg:
+		if msg.id != m.reviewCheckID || msg.key != configKey(m.config) {
+			return m, nil
+		}
+		m.reviewChecking = false
+		m.reviewReport = msg.report
+		m.reviewCheckError = ""
+		if msg.err != nil {
+			m.reviewCheckError = msg.err.Error()
+		} else {
+			m.reviewCheckedConfig = msg.key
+		}
+		return m, nil
+	case settingsMsg:
+		m.settingsBusy = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		m.settingsMode = ""
+		m.err = ""
+		if msg.mode == "load" {
+			return m, m.applyLoadedSettings(msg)
+		}
+		m.settingsNotice = "Settings saved: " + msg.path
+		return m, m.resumeSettingsFocus()
+	case tea.PasteMsg:
+		var cmd tea.Cmd
+		if m.settingsMode != "" && !m.settingsBusy {
+			m.settingsPath, cmd = m.settingsPath.Update(msg)
+		} else if m.screen == utilities && m.packageFocus == 0 {
+			m.packageFilter, cmd = m.packageFilter.Update(msg)
+			m.selectedUtility = 0
+		}
+		return m, cmd
 	case preparationMsg:
 		if m.preparation == nil {
 			m.preparation = map[string]string{}
@@ -242,6 +307,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err.Error()
 			return m, nil
 		}
+		if m.config.Mirror != msg.root {
+			m.packages = nil
+			m.packagesRoot = ""
+			m.packagesLoading = false
+			m.config.Utilities = nil
+		}
 		m.config.Mirror = msg.root
 		m.diskInspection = false
 		m.repositoryReady = true
@@ -249,11 +320,36 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = disks
 		m.blurAll()
 		return m, nil
+	case packagesMsg:
+		if msg.root != m.config.Mirror {
+			return m, nil
+		}
+		m.packagesLoading = false
+		if msg.err != nil {
+			m.packagesError = msg.err.Error()
+			return m, nil
+		}
+		m.packagesError = ""
+		m.packages, m.packagesRoot = msg.packages, msg.root
+		m.selectedUtility = 0
+		m.err = ""
+		available := make(map[string]bool, len(msg.packages))
+		for _, p := range msg.packages {
+			available[p.Name] = true
+		}
+		previous := len(m.config.Utilities)
+		m.config.Utilities = slices.DeleteFunc(m.config.Utilities, func(name string) bool { return !available[name] })
+		if len(m.config.Utilities) != previous {
+			m.err = "Unavailable packages were removed from the selection."
+		}
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		for i := range m.fields {
 			m.fields[i].SetWidth(max(15, min(40, m.width-46)))
 		}
+		m.packageFilter.SetWidth(max(15, min(40, m.width-46)))
+		m.settingsPath.SetWidth(max(15, min(60, m.width-16)))
 		return m, nil
 	case environmentMsg:
 		m.checking = false
@@ -339,6 +435,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		key := msg.String()
+		if m.settingsMode != "" {
+			return m, m.updateSettingsDialog(msg)
+		}
+		m.settingsNotice = ""
 		if m.screen == installing {
 			if key == "f2" {
 				m.showLogs = !m.showLogs
@@ -391,7 +491,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == mirror && m.checking {
 			return m, nil
 		}
+		if (key == "f5" || key == "f9") && m.screen <= review {
+			return m, m.openSettingsDialog(key == "f5")
+		}
 		if key == "esc" {
+			if m.screen == review && m.reviewCancel != nil {
+				m.reviewCancel()
+				m.reviewCheckID++
+				m.reviewChecking = false
+			}
 			m.err = ""
 			m.fieldErrors = nil
 			m.continueFocused = false
@@ -411,6 +519,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.screen == timezone {
 					return m, m.setFocus(10)
 				}
+				if m.screen == utilities {
+					return m, m.focusPackages(0)
+				}
 				if m.screen == network && m.static {
 					return m, m.setFocus(4)
 				}
@@ -418,7 +529,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if m.screen >= mirror && m.screen <= utilities && m.screen != account && !(m.screen == network && m.static) {
+		if m.screen == utilities && key == "ctrl+r" && !m.packagesLoading {
+			m.continueFocused = false
+			m.packagesRoot = ""
+			return m, m.openPackages()
+		}
+		if m.screen >= mirror && m.screen < utilities && m.screen != account && !(m.screen == network && m.static) {
 			if m.continueFocused {
 				if key == "tab" || key == "shift+tab" || key == "up" || key == "down" {
 					m.continueFocused = false
@@ -427,6 +543,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					if m.screen == timezone {
 						return m, m.setFocus(10)
+					}
+					if m.screen == utilities {
+						return m, m.setFocus(14)
 					}
 					return m, nil
 				}
@@ -704,29 +823,88 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.config.Desktop = []string{"none", "kde", "niri"}[m.selectedDesktop]
 				m.screen = utilities
 				m.err = ""
+				return m, m.openPackages()
 			}
 		case utilities:
-			packages := installer.UtilityPackages()
+			if key == "tab" || key == "shift+tab" {
+				delta := 1
+				if key == "shift+tab" {
+					delta = -1
+				}
+				return m, m.focusPackages((m.packageFocus + delta + 4) % 4)
+			}
+			if m.packageFocus == 1 && (key == "space" || key == "enter") {
+				m.selectedOnly = !m.selectedOnly
+				m.selectedUtility = 0
+				return m, nil
+			}
+			if m.packageFocus == 1 && (key == "up" || key == "down") {
+				if key == "up" {
+					return m, m.focusPackages(0)
+				}
+				return m, m.focusPackages(2)
+			}
+			if m.packageFocus == 3 && (key == "up" || key == "down") {
+				if key == "up" {
+					return m, m.focusPackages(2)
+				}
+				return m, m.focusPackages(0)
+			}
+			if m.packageFocus == 1 || (m.packageFocus == 3 && key != "enter") {
+				return m, nil
+			}
+			packages := m.filteredPackages()
 			switch key {
 			case "up", "shift+tab":
 				m.selectedUtility = max(0, m.selectedUtility-1)
 			case "down", "tab":
-				m.selectedUtility = min(len(packages)-1, m.selectedUtility+1)
+				m.selectedUtility = max(0, min(len(packages)-1, m.selectedUtility+1))
 			case "pgdown":
-				m.selectedUtility = min(len(packages)-1, m.selectedUtility+10)
+				m.selectedUtility = max(0, min(len(packages)-1, m.selectedUtility+10))
 			case "pgup":
 				m.selectedUtility = max(0, m.selectedUtility-10)
 			case "space":
-				p := packages[m.selectedUtility]
+				if len(packages) == 0 || m.packagesLoading || m.packagesError != "" {
+					return m, nil
+				}
+				p := packages[m.selectedUtility].Name
 				if i := slices.Index(m.config.Utilities, p); i >= 0 {
 					m.config.Utilities = slices.Delete(m.config.Utilities, i, i+1)
 				} else {
+					if len(m.config.Utilities) >= installer.MaxExtraPackages {
+						m.err = "Select at most 256 additional packages."
+						return m, nil
+					}
 					m.config.Utilities = append(m.config.Utilities, p)
 				}
+				m.err = ""
+				m.selectedUtility = max(0, min(m.selectedUtility, len(m.filteredPackages())-1))
 			case "enter":
-				m.toReview()
+				if m.packagesLoading || m.packagesError != "" || m.packagesRoot != m.config.Mirror {
+					m.err = "Wait for the package list or press Ctrl+R to retry."
+					return m, nil
+				}
+				if err := installer.ValidateRepositorySelection(m.config.Utilities, m.packages); err != nil {
+					m.err = err.Error()
+					return m, nil
+				}
+				return m, m.toReview()
+			default:
+				if m.packageFocus != 0 {
+					return m, nil
+				}
+				before := m.packageFilter.Value()
+				var cmd tea.Cmd
+				m.packageFilter, cmd = m.packageFilter.Update(msg)
+				if before != m.packageFilter.Value() {
+					m.selectedUtility = 0
+				}
+				return m, cmd
 			}
 		case review:
+			if key == "ctrl+r" && !m.reviewChecking {
+				return m, m.checkReview()
+			}
 			if key == "pgdown" {
 				m.reviewOffset += max(1, m.height-15)
 				return m, nil
@@ -749,10 +927,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if key == "enter" {
 				if m.reviewFocus == 1 {
+					if m.reviewCancel != nil {
+						m.reviewCancel()
+					}
+					m.reviewCheckID++
+					m.reviewChecking = false
 					m.screen = utilities
 					m.err = ""
 					m.blurAll()
-					return m, nil
+					return m, m.focusPackages(0)
 				}
 				if m.reviewFocus == 0 {
 					m.reviewFocus = 2
@@ -829,6 +1012,8 @@ func (m *model) appendLog(s string) {
 	}
 }
 func (m *model) blurAll() {
+	m.packageFilter.Blur()
+	m.settingsPath.Blur()
 	for i := range m.fields {
 		m.fields[i].Blur()
 	}
@@ -836,6 +1021,9 @@ func (m *model) blurAll() {
 func (m *model) setFocus(i int) tea.Cmd {
 	m.blurAll()
 	m.focus = i
+	if i == 14 {
+		return m.packageFilter.Focus()
+	}
 	if i >= 0 && i < len(m.fields) {
 		return m.fields[i].Focus()
 	}
@@ -890,13 +1078,14 @@ func (m *model) reviewConfig() error {
 	c.Confirmation = "ERASE " + c.Disk
 	return c.Validate()
 }
-func (m *model) toReview() {
+func (m *model) toReview() tea.Cmd {
 	m.screen = review
 	m.err = ""
 	m.reviewOffset = 0
 	m.reviewFocus = 0
 	m.fields[8].SetValue("")
 	m.setFocus(8)
+	return m.checkReview()
 }
 func (m *model) networkSummary() string {
 	if m.config.Network == "dhcp" {
@@ -906,5 +1095,5 @@ func (m *model) networkSummary() string {
 }
 
 func (m *model) erasureConfirmed() bool {
-	return m.fields[8].Value() == "ERASE "+m.config.Disk
+	return m.fields[8].Value() == "ERASE "+m.config.Disk && m.reviewChecksPassed()
 }

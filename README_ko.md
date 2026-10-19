@@ -14,7 +14,7 @@
   <li><p>5. 시간대</p><img src="img/timezone.png" alt="Asia/Seoul이 선택된 시간대 검색 화면" width="100%"></li>
   <li><p>6. 네트워크</p><img src="img/network.png" alt="DHCP가 선택된 네트워크 설정 화면" width="100%"></li>
   <li><p>7. 데스크톱</p><img src="img/desktop.png" alt="콘솔, KDE Plasma, Niri 선택과 NVIDIA GPU 미탐지 안내 화면" width="100%"></li>
-  <li><p>8. 유틸리티</p><img src="img/utilities.png" alt="선택 패키지 체크박스와 설명이 표시된 유틸리티 화면" width="100%"></li>
+  <li><p>8. 패키지</p><img src="img/utilities.png" alt="선택 패키지 설치 화면" width="100%"></li>
   <li><p>9. 검토 및 디스크 삭제 확인</p><img src="img/review-installation.png" alt="설치 요약과 디스크 삭제 확인을 표시하는 중앙 검토 창" width="100%"></li>
 </ul>
 </details>
@@ -89,11 +89,19 @@ lsblk -d -o NAME,SIZE,TYPE,SERIAL,WWN
 
 ## 진행 과정
 
-Welcome → Mirror → Disk → Account → Timezone → Network → Desktop → Utilities → Review 순서로 진행합니다. Timezone에서는 도시나 지역 이름을 입력하고 방향키 또는 PageUp/PageDown으로 이동한 뒤 Enter로 시간대(예: `Asia/Seoul`)를 선택합니다. 기본값은 UTC이며 NTP 서비스는 추가하지 않습니다.
+Welcome → Mirror → Disk → Account → Timezone → Network → Desktop → Packages → Review 순서로 진행합니다. Timezone에서는 도시나 지역 이름을 입력하고 방향키 또는 PageUp/PageDown으로 이동한 뒤 Enter로 시간대(예: `Asia/Seoul`)를 선택합니다. 기본값은 UTC이며 NTP 서비스는 추가하지 않습니다.
 
 방향키 또는 Tab/Shift+Tab으로 이동하고, Space로 선택·체크를 전환하고, Enter로 확정하며, Esc로 이전 화면으로 돌아갑니다. 마지막 Review는 검은 배경 중앙의 사각형 창으로 표시됩니다. PageUp/PageDown으로 요약을 스크롤할 수 있으며, 삭제 확인 입력과 Back/Install 버튼은 계속 표시됩니다. 입력칸에서 Enter를 누르면 Install로 이동하고, 해당 버튼에서 Enter를 한 번 더 눌러야 설치가 시작됩니다.
 
-Welcome에서는 준비 단계별 진행·완료·생략·실패 상태를 표시합니다. 설정 화면의 Continue는 같은 하단 위치에 고정되며, 선택 목록에서 Tab으로 버튼에 이동하거나 Enter로 현재 선택을 확정하고 진행합니다. 계정·고정 네트워크 폼에서는 Enter로 입력칸을 거쳐 Continue로 이동한 뒤 제출합니다. 잘못된 값의 설명은 해당 입력칸 아래에 표시합니다. 디스크 화면은 목록과 모델·용량·Serial/WWN·차단 사유를 분리하며, Welcome 검사 실패 시 D로 정보만 조회할 수 있습니다. Desktop·Utilities의 설명은 선택 목록 아래에 고정합니다. Review에는 선택한 데스크톱·드라이버·유틸리티 개수를 먼저 보여주고 패키지·서비스·저장소 상세를 뒤에 배치합니다. 설치 중에는 민감 정보를 제거한 최근 로그 몇 줄을 표시하며 F2로 전체 로그를 엽니다.
+Review에서는 Live 환경, 네트워크 어댑터, 미러·의존성, NVIDIA 지원, 디스크 안전성, 필요 용량을 디스크 변경 없이 검사합니다. 요약 위에 검사 상태를 표시하며, 스크롤하면 항목별 결과와 용량을 확인할 수 있습니다. 현재 설정에 대한 검사가 통과하고 정확한 삭제 확인 문구를 입력해야 Install이 활성화됩니다. 실패하면 Ctrl+R로 재검사합니다. 실제 설치 엔진도 삭제 전에 안전 검사를 반복합니다.
+
+### 설정 저장·불러오기
+
+Review에서 F5로 설정을 저장하고, 설치 전 화면에서 F9로 불러옵니다. 창에서 JSON 파일 경로를 지정하며 기본값은 `~/void-installer-settings.json`입니다. 저장 파일 권한은 0600이고, 암호와 삭제 확인 문구는 저장하지 않습니다. 불러오면 암호·삭제 확인 입력을 비우고 디스크를 다시 탐색한 뒤 Mirror로 돌아가 미러와 대상을 확인하게 합니다. 디스크가 변경되었거나 없거나 안전하지 않으면 다시 선택해야 합니다. Live 환경 종료 후에도 쓰려면 영구 저장 매체에 파일을 보관하세요. 기존의 정상 설정 파일만 덮어쓰며, 무관한 파일과 심볼릭 링크는 거부합니다.
+
+선택한 사용자에게만 암호를 설정하고 `wheel` 그룹과 암호 기반 sudo 권한을 부여합니다. root 암호는 잠그며 관리자 작업은 sudo로 수행합니다.
+
+Welcome에서는 준비 단계별 진행·완료·생략·실패 상태를 표시합니다. 설정 화면의 Continue는 같은 하단 위치에 고정되며, 선택 목록에서 Tab으로 버튼에 이동하거나 Enter로 현재 선택을 확정하고 진행합니다. 계정·고정 네트워크 폼에서는 Enter로 입력칸을 거쳐 Continue로 이동한 뒤 제출합니다. 잘못된 값의 설명은 해당 입력칸 아래에 표시합니다. 디스크 화면은 목록과 모델·용량·Serial/WWN·차단 사유를 분리하며, Welcome 검사 실패 시 D로 정보만 조회할 수 있습니다. Desktop·Packages의 설명은 선택 목록 아래에 고정합니다. Review에는 선택한 데스크톱·드라이버·추가 패키지 개수를 먼저 보여주고 패키지·서비스·저장소 상세를 뒤에 배치합니다. 설치 중에는 민감 정보를 제거한 최근 로그 몇 줄을 표시하며 F2로 전체 로그를 엽니다.
 
 ## 설치 프로필
 
@@ -101,17 +109,19 @@ Welcome에서는 준비 단계별 진행·완료·생략·실패 상태를 표�
 
 CLI를 포함한 모든 프로필에 `bluez`와 `tlp`를 설치하고 `bluetoothd`, `tlp` runit 서비스를 활성화합니다.
 
-두 데스크톱 프로필에는 `pipewire`, `wireplumber`, `libjack-pipewire`, `alsa-pipewire`를 기본으로 포함합니다. Firefox와 Kitty는 자동으로 설치하지 않으며 유틸리티에서 선택해야 합니다.
+두 데스크톱 프로필에는 `pipewire`, `wireplumber`, `libjack-pipewire`, `alsa-pipewire`를 기본으로 포함합니다. Firefox와 Kitty는 자동으로 설치하지 않으며 Packages에서 선택해야 합니다.
 
-## 유틸리티
+## 패키지 설치
 
-유틸리티는 실제 패키지 이름의 개별 체크박스로 선택합니다. `wget`, `curl`, `vim`, `nano`, `git`, `openssh`, `firefox`, `kitty`, `bash-completion`, `rsync`, `zip`, `unzip`, `btop`, `ripgrep`, `fcitx5`, `fcitx5-hangul`, `wl-clipboard`, `jq`, `pciutils`, `usbutils`를 제공합니다.
+Packages에서는 선택한 Void 미러의 x86_64 glibc 기본 저장소(`/current`)에서 패키지 목록을 받아옵니다. 글자를 입력하면 이름과 설명으로 검색하며, 방향키 또는 PageUp/PageDown으로 이동하고 Space로 체크박스를 선택·해제합니다. 목록에는 이름과 버전을, 하단에는 설명을 표시합니다. 검색어를 바꿔도 선택은 유지됩니다. Tab/Shift+Tab은 검색창 → Show selected only → 패키지 목록 → Continue 순서로 이동합니다. Show selected only에서 Space를 누르면 선택한 패키지만 표시하며 검색 조건도 함께 적용합니다. 이 상태에서 선택을 해제하면 즉시 숨겨집니다. 검색창·목록·Continue에서 Enter로 Review에 진행합니다. 목록을 불러오지 못하면 Ctrl+R로 재시도합니다. 추가 패키지는 최대 256개를 선택할 수 있으며, 미러를 변경하면 기존 목록과 선택은 초기화됩니다.
+
+목록은 Live 환경의 저장소 서명키와 별도 임시 메타데이터를 사용해 XBPS로 확인합니다. 삭제 전에는 패키지 존재 여부, 의존성 충돌, 대상 디스크 용량을 다시 검사합니다. 이 목록에는 nonfree·multilib 패키지를 포함하지 않으며, 별도의 NVIDIA 옵션이 필요한 nonfree 패키지를 처리합니다.
 
 `fcitx5`를 선택하면 `fcitx5-qt`, `fcitx5-qt5`, `fcitx5-qt6`, `fcitx5-gtk`, `fcitx5-gtk+3`, `fcitx5-gtk4`, `fcitx5-configtool`도 함께 설치합니다. `fcitx5-hangul`만 선택해도 같은 묶음을 설치하고 영어/한글 입력 프로필을 생성합니다. `openssh`를 설치해도 `sshd` 서비스는 자동으로 활성화하지 않습니다.
 
 ## Niri 기본 키 바인딩
 
-Niri에는 다음 실행 단축키를 제공합니다. Mod는 Super 키(일반적으로 Windows 키)를 뜻합니다. Firefox와 Kitty 단축키는 해당 패키지를 유틸리티에서 선택한 경우에만 추가됩니다.
+Niri에는 다음 실행 단축키를 제공합니다. Mod는 Super 키(일반적으로 Windows 키)를 뜻합니다. Firefox와 Kitty 단축키는 해당 패키지를 Packages에서 선택한 경우에만 추가됩니다.
 
 - `Mod` + `B`: Firefox 실행
 - `Mod` + `Enter`: Kitty 실행

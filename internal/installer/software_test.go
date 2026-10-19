@@ -15,7 +15,7 @@ func TestSoftwareAllowlist(t *testing.T) {
 			t.Fatal(p, err)
 		}
 	}
-	for _, p := range []string{"--force", "firefox;reboot", "unknown-package", "firefox\nkitty"} {
+	for _, p := range []string{"--force", "firefox;reboot", "firefox\nkitty"} {
 		c.Utilities = []string{p}
 		if c.Validate() == nil {
 			t.Fatal("unsafe utility accepted", p)
