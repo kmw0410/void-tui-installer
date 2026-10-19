@@ -26,6 +26,12 @@ CONFIG='{"version":1,"disk":"/dev/vda","identity":"252:0 21474836480 512 test","
 GOOD=$CONFIG
 validate_config
 pass 'valid DHCP configuration'
+for field in disk identity username hostname network interface address gateway dns confirmation desktop graphics mirror timezone; do
+    for control in '\n' '\u0000' '\t' '\u007f'; do
+        reject "$(jq --arg field "$field" --argjson control "\"$control\"" '.[$field]=((.[$field]//"")+$control)' <<< "$GOOD")"
+    done
+done
+pass 'original JSON control characters are rejected before Bash normalization'
 [[ $TIMEZONE == UTC ]]
 CONFIG=$(jq '.timezone="Asia/Seoul"' <<< "$GOOD")
 validate_config
@@ -504,4 +510,29 @@ grep -q '^VOID_PREP install running$' "$TEST_DIR/prepare-install-failure.out"
 if grep -q '^VOID_PREP install completed$' "$TEST_DIR/prepare-install-failure.out"; then exit 1; fi
 grep -q '^VOID_PREP install completed$' "$TEST_DIR/prepare-missing.out"
 pass 'Live preparation reports running, skipped and completed states without marking failed work complete'
+for scenario in partition_disk:2:0 partition_disk:3:1 create_filesystems:1:0 create_filesystems:2:1; do
+    IFS=: read -r operation fail_at expected <<< "$scenario"
+    operation_log=$TEST_DIR/storage-guard.log
+    : > "$operation_log"
+    code=0
+    bash -Eeuo pipefail -c '
+        source "$1/scripts/lib/common.sh"
+        source "$1/scripts/lib/disk.sh"
+        source "$1/scripts/lib/btrfs.sh"
+        count=0
+        check_static_interface() { :; }
+        run() { printf "%s\n" "$*" >> "$operation_log"; }
+        operation=$2
+        fail_at=$3
+        operation_log=$4
+        check_disk() { count=$((count+1)); (( count < fail_at )) || fail "Fixture disk identity changed."; }
+        DISK=/dev/fixture
+        EFI=/dev/fixture1
+        ROOT=/dev/fixture2
+        "$operation"
+    ' _ "$ROOT_DIR" "$operation" "$fail_at" "$operation_log" >/dev/null 2>&1 || code=$?
+    (( code != 0 ))
+    [[ $(wc -l < "$operation_log") -eq $expected ]]
+done
+pass 'changed disk state blocks each subsequent destructive command using mocks only'
 printf '1..%s\n' "$count"

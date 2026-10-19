@@ -108,7 +108,9 @@ partition_disk() {
     check_static_interface
     EFI=$(partition_path "$DISK" 1)
     ROOT=$(partition_path "$DISK" 2)
+    check_disk
     run sgdisk --zap-all "$DISK"
+    check_disk
     run sgdisk --clear --new=1:0:+1G --typecode=1:ef00 --change-name=1:EFI --new=2:0:0 --typecode=2:8300 --change-name=2: "$DISK"
     run partprobe "$DISK"
     run udevadm settle --timeout=30

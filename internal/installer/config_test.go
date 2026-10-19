@@ -19,6 +19,13 @@ func TestConfigConsentAndIdentity(t *testing.T) {
 		func(c *Config) { c.Confirmation = "ERASE /dev/vdb" },
 		func(c *Config) { c.Identity = "" },
 		func(c *Config) { c.Identity = "changed\nidentity" },
+		func(c *Config) { c.Identity = "changed\tidentity" },
+		func(c *Config) { c.Identity = strings.Repeat("x", 1025) },
+		func(c *Config) { c.Disk = "/dev/disk/by-id/example" },
+		func(c *Config) { c.Username = "alice\n" },
+		func(c *Config) { c.Confirmation += "\n" },
+		func(c *Config) { c.Desktop = "none\x00" },
+		func(c *Config) { c.Mirror = "https://repo-default.voidlinux.org\n" },
 		func(c *Config) { c.Disk = "/dev/../etc/passwd" },
 		func(c *Config) { c.Version = 2 },
 	} {

@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+
+	"github.com/charmbracelet/x/ansi"
 	"void-installer/internal/validation"
 	"void-installer/scripts"
 )
@@ -118,6 +120,10 @@ func preflightScriptProgress(parent context.Context, script string, report func(
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 	cmd.WaitDelay = 3 * time.Second
 	err = cmd.Run()
+	// WaitDelay only kills the direct child; descendants may ignore SIGTERM.
+	if cmd.Process != nil {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 	if err != nil {
 		log.Sync()
 		tail := make([]byte, 8192)
@@ -348,12 +354,17 @@ func clean(text, password string) string {
 	if password != "" {
 		text = strings.ReplaceAll(text, password, "[REDACTED]")
 	}
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' {
+	text = strings.Map(func(r rune) rune {
+		if (unicode.IsControl(r) && r != '\t' && r != '\n') || unicode.Is(unicode.Cf, r) {
 			return -1
 		}
 		return r
-	}, text)
+	}, ansi.Strip(text))
+	// Normalization can rejoin a secret split by terminal controls.
+	if password != "" {
+		text = strings.ReplaceAll(text, password, "[REDACTED]")
+	}
+	return text
 }
 
 // Both subprocess streams share this writer, so os/exec serializes writes.

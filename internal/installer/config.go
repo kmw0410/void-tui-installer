@@ -2,7 +2,7 @@ package installer
 
 import (
 	"fmt"
-	"path/filepath"
+	"regexp"
 	"strings"
 	"void-installer/internal/validation"
 )
@@ -30,10 +30,15 @@ func (c Config) Validate() error {
 	if c.Version != 1 {
 		return fmt.Errorf("Unsupported configuration version")
 	}
-	if !strings.HasPrefix(c.Disk, "/dev/") || filepath.Clean(c.Disk) != c.Disk || strings.ContainsAny(c.Disk, "\n\r\t ") {
+	if !regexp.MustCompile(`^/dev/[a-zA-Z0-9_-]+$`).MatchString(c.Disk) {
 		return fmt.Errorf("Invalid disk path")
 	}
-	if c.Identity == "" || strings.ContainsAny(c.Identity, "\n\r\x00") {
+	for _, value := range append([]string{c.Disk, c.Identity, c.Username, c.Hostname, c.Network, c.Interface, c.Address, c.Gateway, c.DNS, c.Confirmation, c.Desktop, c.Graphics, c.Mirror, c.Timezone}, c.Utilities...) {
+		if strings.ContainsFunc(value, func(r rune) bool { return r < 32 || r == 127 }) {
+			return fmt.Errorf("Configuration strings must not contain control characters")
+		}
+	}
+	if c.Identity == "" || len(c.Identity) > 1024 {
 		return fmt.Errorf("Disk identity is unavailable")
 	}
 	if err := validation.Account(c.Username, c.Hostname); err != nil {

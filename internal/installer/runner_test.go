@@ -33,6 +33,54 @@ func TestUnexpectedExit(t *testing.T) {
 	}
 }
 
+func TestCleanRedactsAfterNormalization(t *testing.T) {
+	for _, text := range []string{
+		"private secret123",
+		"private \x01secret123",
+		"private \x1b[31msecret123\x1b[0m",
+		"private \u202esecret123",
+	} {
+		got := clean(text, "private secret123")
+		if got != "[REDACTED]" {
+			t.Fatalf("secret was not redacted after normalization: %q", got)
+		}
+	}
+	if got := clean("safe\x1b]52;c;payload\a text", ""); got != "safe text" {
+		t.Fatalf("terminal sequence survived: %q", got)
+	}
+}
+
+func TestPreflightRemovesSurvivingDescendants(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "check.sh")
+	pidFile := filepath.Join(dir, "child.pid")
+	body := "(trap '' TERM; exec sleep 60) </dev/null >/dev/null 2>&1 &\nprintf '%s' \"$!\" > '" + pidFile + "'\nexit 0\n"
+	if err := os.WriteFile(script, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := preflightScript(context.Background(), script); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(string(data))
+	if err != nil || pid <= 0 {
+		t.Fatal("invalid child PID")
+	}
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		status, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "status"))
+		if os.IsNotExist(err) || (err == nil && strings.Contains(string(status), "State:\tZ")) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("preflight left a running child process")
+}
+
 func TestPreflightFailureKeepsFullDiagnostics(t *testing.T) {
 	script := filepath.Join(t.TempDir(), "check.sh")
 	body := "printf 'The actual diagnostic before the package plan\\n' >&2\nfor i in {1..50}; do printf 'package-%s install x86_64 repository 123 456\\n' \"$i\"; done\nprintf 'Preflight failed: Package transaction resolution (exit status 23).\\n' >&2\nexit 23\n"
@@ -74,6 +122,55 @@ func TestCancelledPreflightIsClearlyReported(t *testing.T) {
 	}
 }
 
+func TestCancelledPreflightKillsTermIgnoringGroup(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "check.sh")
+	pidFile := filepath.Join(dir, "child.pid")
+	body := "trap '' TERM\nsleep 60 &\nprintf '%s' \"$!\" > '" + pidFile + "'\nwait\n"
+	if err := os.WriteFile(script, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- preflightScript(ctx, script) }()
+	var pid int
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		data, _ := os.ReadFile(pidFile)
+		pid, _ = strconv.Atoi(string(data))
+		if pid > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if pid <= 0 {
+		t.Fatal("fixture child failed to start")
+	}
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "was cancelled") {
+			t.Fatalf("unexpected cancellation result: %v", err)
+		}
+		if _, path, ok := strings.Cut(err.Error(), "Full log: "); ok {
+			os.Remove(path)
+		}
+	case <-time.After(8 * time.Second):
+		t.Fatal("preflight cancellation did not finish")
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		status, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "status"))
+		if os.IsNotExist(err) || (err == nil && strings.Contains(string(status), "State:\tZ")) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("cancelled preflight left a running child")
+}
+
 func TestPreflightModesPassMirrorAsOneArgument(t *testing.T) {
 	script := filepath.Join(t.TempDir(), "mode.sh")
 	if err := os.WriteFile(script, []byte("[[ $# == 1 && ( $1 == --check-local || $1 == --prepare-live ) ]] || [[ $# == 2 && $1 == --check && $2 == https://mirror.example/voidlinux ]]\n"), 0600); err != nil {
@@ -106,7 +203,7 @@ func TestMalformedEventStopsEngine(t *testing.T) {
 	}
 }
 func TestPasswordAndTerminalSanitization(t *testing.T) {
-	s, _ := engine(t, "IFS= read -r secret <&3\nprintf '%s\\n' \"$secret\" >&2\nprintf '\\033[2Jcontrol\\n' >&2\nexit 1\n")
+	s, _ := engine(t, "IFS= read -r secret <&3\nprintf '%s\\n' \"$secret\" >&2\nprintf 'private \\001secret123\\nprivate \\033[31msecret123\\033[0m\\n' >&2\nprintf '\\033[2Jcontrol\\n' >&2\nexit 1\n")
 	for e := range s.Events {
 		if strings.Contains(e.Message, "private secret") || strings.Contains(e.Message, "\x1b") {
 			t.Fatal("unsafe diagnostic exposed")

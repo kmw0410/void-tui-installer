@@ -25,6 +25,8 @@ You are responsible for deciding whether to use this installer and for the conse
 
 The test environments are an HP Victus 15 (15-fa0051tx, i5-12450H/RTX 3050 Laptop GPU) and QEMU VMs. Results may differ on other systems, and unexpected problems may occur. See the [validation record](docs/testing.md) for the test coverage and unverified cases documented in this repository.
 
+Installation erases the selected disk. The exact `ERASE <disk>` confirmation is required, and disk identity and activity are rechecked before each partitioning or formatting command. Keep storage devices connected and avoid other disk operations until installation finishes; these checks cannot make hardware changes atomic. Diagnostic logs remove terminal control sequences and redact the supplied password.
+
 ## Dependencies
 
 The installer requires these packages:

@@ -14,7 +14,9 @@ verify_mount() {
     [[ $actual == "/$subvol" ]] || fail 'Incorrect Btrfs subvolume mount.'
 }
 create_filesystems() {
+    check_disk
     run mkfs.vfat -F 32 -n EFI "$EFI"
+    check_disk
     run mkfs.btrfs -f "$ROOT"
     run mount -t btrfs -o subvolid=5 "$ROOT" "$TOP"
     local sub
