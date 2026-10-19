@@ -3,8 +3,11 @@ software_catalog() {
     jq "$@" "$SCRIPT_DIR/catalog.json"
 }
 select_packages() {
+    # jq expands $fs from --arg; the shell must leave the expression literal.
+    # shellcheck disable=SC2016
     software_catalog -e --arg fs "$FILESYSTEM" '(.base|type=="array" and length>0) and (.filesystems[$fs]|type=="array" and length>0)' >/dev/null || fail 'The software catalog is unavailable.'
     local package
+    # shellcheck disable=SC2016
     mapfile -t PACKAGES < <(software_catalog -r --arg fs "$FILESYSTEM" '.base[], .filesystems[$fs][]')
     local -a additions=()
     mapfile -t additions < <(software_catalog -r '.common[]')

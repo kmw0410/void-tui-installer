@@ -138,6 +138,8 @@ pass 'UUID fstab includes every subvolume and EFI'
     if grep -Eq 'btrfs|subvol|mkfs.ext4.* -L' "$operation_log"; then exit 1; fi
 )
 pass 'ext4 formatting uses guards, UUID fstab and no Btrfs operations with mocked devices only'
+# Following fixtures use the original target, not the isolated ext4 target.
+TARGET=$TEST_DIR/target
 enable_service() { [[ $1 == dhcpcd ]]; }
 mkdir -p "$TARGET/usr/libexec/dhcpcd-hooks"
 printf '# Resolver hook fixture\n' > "$TARGET/usr/libexec/dhcpcd-hooks/20-resolv.conf"
