@@ -232,6 +232,10 @@ The workflow now resolves the latest Go 1.26 patch, passes the resolved version 
 
 The official Go 1.26.9 toolchain was downloaded into a temporary module cache and used with automatic toolchain switching disabled. Source/test scanning and scanning of a stripped static Linux amd64 binary built under /tmp both reported `No vulnerabilities found`. Local `make check` and `go test -race ./...` passed, including 40 installer Bash fixture groups, nine release groups, vet, Bash syntax and ShellCheck. Actionlint with ShellCheck and git diff whitespace checks passed. Existing dist artifacts were preserved. No GitHub workflow, release publication or installer execution was performed for this change.
 
+## 2026-10-23: Go toolchain vulnerability review
+
+The official Go release history lists Go 1.26.10 and Go 1.27.3 as the current patched releases; both include the `crypto/x509` security fix. The workflow selects the latest available 1.26 patch with `check-latest: true`, then passes that exact resolved version from validation to release, so its selected toolchain includes the fix. The Go vulnerability database's latest `crypto/x509` report is GO-2026-6809 (published 2026-10-21); no vulnerable workflow version was configured. Running pinned govulncheck v1.9.0 against source and tests with the current database reported `No vulnerabilities found`. No workflow or dependency changes were needed. A local release-binary scan was not repeated.
+
 ## 2026-10-19: ext4 CI ShellCheck repair
 
 The user supplied an Actions failure showing SC2016 on jq expressions and SC2030/SC2031 after the isolated ext4 TARGET assignment. Both were reproduced locally with ShellCheck 0.11.0. The jq expressions now have two narrowly scoped SC2016 annotations because jq, not Bash, expands the --arg variable. Subsequent fixtures explicitly restore their original target after the isolated ext4 case, removing the subshell data-flow warnings without disabling them.
