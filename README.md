@@ -63,6 +63,8 @@ go test -race ./...
 
 ### Run
 
+KDE and niri name the installed wired NetworkManager connection `Wired connection 1`.
+
 Boot the official x86_64 glibc Live ISO in UEFI mode, disable Secure Boot, and connect to the network. Run the installer as root in a terminal of at least 80×24.
 
 You can use a binary from Releases instead of building locally. Download its matching `SHA256SUMS`, verify it with `sha256sum -c SHA256SUMS`, and substitute the versioned filename (for example `void-tui-installer-v0.4.0-1`) for `void-installer-tui` in the commands below.

@@ -63,6 +63,8 @@ go test -race ./...
 
 ### 실행
 
+KDE와 niri의 설치된 NetworkManager 유선 연결 이름은 `Wired connection 1`입니다.
+
 공식 x86_64 glibc Live ISO를 UEFI 모드로 부팅하고 Secure Boot를 끈 뒤 네트워크에 연결하세요. 최소 80×24 크기의 터미널에서 root로 실행합니다.
 
 직접 빌드하는 대신 Releases의 바이너리를 사용할 수도 있습니다. 같은 릴리스의 `SHA256SUMS`를 내려받아 `sha256sum -c SHA256SUMS`로 검증하고, 아래 명령의 `void-installer-tui`를 내려받은 버전별 파일명(예: `void-tui-installer-v0.4.0-1`)으로 바꾸세요.

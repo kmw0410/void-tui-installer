@@ -67,7 +67,7 @@ configure_networkmanager() {
     # Use NetworkManager's internal DHCP client and direct DNS-file management.
     printf '[main]\ndhcp=internal\ndns=default\nrc-manager=file\n' > "$TARGET/etc/NetworkManager/conf.d/10-void-installer.conf"
     chmod 0644 "$TARGET/etc/NetworkManager/conf.d/10-void-installer.conf"
-    printf '[connection]\nid=void-installer\nuuid=89d03ed4-2ef0-4a2b-bcc6-42a5e6c4637e\ntype=ethernet\nautoconnect=true\n\n[ethernet]\n' > "$directory/void-installer.nmconnection"
+    printf '[connection]\nid=Wired connection 1\nuuid=89d03ed4-2ef0-4a2b-bcc6-42a5e6c4637e\ntype=ethernet\nautoconnect=true\n\n[ethernet]\n' > "$directory/void-installer.nmconnection"
     if [[ $NETWORK == static ]]; then
         [[ ${NETWORK_MAC:-} =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]] || fail 'The selected Ethernet hardware identity is unavailable.'
         printf 'mac-address=%s\n\n[ipv4]\nmethod=manual\naddress1=%s,%s\ndns=%s;\nignore-auto-dns=true\n' "$NETWORK_MAC" "$ADDRESS" "$GATEWAY" "$DNS" >> "$directory/void-installer.nmconnection"

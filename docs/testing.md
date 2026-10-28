@@ -241,3 +241,7 @@ The official Go release history lists Go 1.26.10 and Go 1.27.3 as the current pa
 The user supplied an Actions failure showing SC2016 on jq expressions and SC2030/SC2031 after the isolated ext4 TARGET assignment. Both were reproduced locally with ShellCheck 0.11.0. The jq expressions now have two narrowly scoped SC2016 annotations because jq, not Bash, expands the --arg variable. Subsequent fixtures explicitly restore their original target after the isolated ext4 case, removing the subshell data-flow warnings without disabling them.
 
 ShellCheck passed across every script covered by make check, and git diff whitespace validation passed. Go tests, Bash fixtures, race checks, builds and installations were not rerun for this correction. GitHub Actions has not yet rerun with the fix.
+
+## 2026-10-28: Wired connection display name
+
+The generated KDE/niri NetworkManager profile now uses `Wired connection 1` as its display name for DHCP and static IPv4. All 42 Bash fixture groups passed, including both desktop network renderers. Bash syntax, ShellCheck 0.11.0 for the changed script and git diff whitespace checks passed. No distribution rebuild, Go tests or Live/QEMU installation was performed for this label-only change.
